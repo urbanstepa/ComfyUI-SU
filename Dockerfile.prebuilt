@@ -1,7 +1,9 @@
 # Dockerfile.prebuilt
-# Pre-compiles all CUDA extensions into the image so startup is instant.
-# Build locally with GPU (requires NVIDIA Docker support):
-#   ./build-prebuilt.sh
+# Documents what the pre-compiled image contains.
+# docker build does NOT support --gpus, so use the build script instead:
+#
+#   PowerShell: .\build-prebuilt.ps1
+#   Bash:       ./build-prebuilt.sh
 #
 # NOT built in GitHub CI (no GPU available there).
 
