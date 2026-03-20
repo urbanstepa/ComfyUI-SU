@@ -14,7 +14,7 @@ Write-Host "This will take several minutes on first build."
 Write-Host ""
 
 # Clean up any leftover temp container from a previous failed run
-docker rm $TempContainer 2>$null
+docker rm $TempContainer 2>$null; $global:LASTEXITCODE = 0
 
 $buildScript =
     "set -e" +
@@ -33,8 +33,8 @@ $buildScript =
 docker run --gpus all --name $TempContainer $BaseImage /bin/bash -c $buildScript
 
 if ($LASTEXITCODE -ne 0) {
-    docker rm $TempContainer 2>$null
-    throw "Extension build failed — see output above."
+    docker rm $TempContainer 2>$null; $global:LASTEXITCODE = 0
+    throw "Extension build failed - see output above."
 }
 
 Write-Host ""

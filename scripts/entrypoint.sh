@@ -39,6 +39,7 @@ fi
 TORCHSPARSE_STAMP="/opt/.torchsparse_built"
 if [ ! -f "$TORCHSPARSE_STAMP" ]; then
     echo ">>> First run: building torchsparse..."
+    rm -rf /tmp/torchsparse
     git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse
     cd /tmp/torchsparse
     python setup.py install && touch "$TORCHSPARSE_STAMP" && echo ">>> torchsparse built successfully" \
