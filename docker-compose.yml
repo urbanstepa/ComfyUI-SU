@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  comfyui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: comfyui-3d:latest
+    container_name: comfyui-3d
+    restart: unless-stopped
+
+    # GPU access
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    ports:
+      - "8188:8188"
+
+    volumes:
+      # Mount your existing models directory from Windows host
+      # Adjust the left side to match your actual models path
+      - "D:/ComfyUI_installed_2/models:/models"
+
+      # Persist outputs and user data
+      - comfyui_output:/opt/ComfyUI/output
+      - comfyui_input:/opt/ComfyUI/input
+      - comfyui_user:/opt/ComfyUI/user
+
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      # Optionally set extra args here
+      - COMFYUI_ARGS=--listen 0.0.0.0 --port 8188
+
+    # Healthcheck - waits for ComfyUI API to be ready
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8188/system_stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  comfyui_output:
+  comfyui_input:
+  comfyui_user:

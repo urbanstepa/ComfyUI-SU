@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.local
+*.log
+
+# Model files - never commit these
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.gguf
+
+# Output files
+output/
+input/
+
+# Docker volumes
+.docker/
