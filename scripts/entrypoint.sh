@@ -8,6 +8,12 @@ echo "================================================"
 # Print GPU info
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo "GPU info unavailable"
 
+# Show prebuilt manifest if present
+if [ -f /opt/.prebuilt-manifest ]; then
+    echo "Prebuilt extensions:"
+    sed 's/^/  /' /opt/.prebuilt-manifest
+fi
+
 # ─────────────────────────────────────────────
 # Build CUDA extensions on first run
 # Uses setup.py directly to avoid pip's isolated build env
