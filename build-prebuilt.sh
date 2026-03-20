@@ -73,7 +73,9 @@ build_step() {
 
     docker run --gpus all --entrypoint /bin/bash --name "$TEMP_CONTAINER" "$from_image" -c "$full_script"
 
-    docker commit "$TEMP_CONTAINER" "$LOCAL_IMAGE:$step_tag"
+    # Restore original entrypoint and clear CMD
+    # (docker run --entrypoint overrides both, and docker commit preserves them)
+    docker commit --change='ENTRYPOINT ["/entrypoint.sh"]' --change='CMD []' "$TEMP_CONTAINER" "$LOCAL_IMAGE:$step_tag"
     docker rm "$TEMP_CONTAINER"
 
     # Push with unique step tag + update latest
