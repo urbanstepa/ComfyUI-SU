@@ -20,6 +20,10 @@ ENV COMFYUI_PATH=/opt/ComfyUI
 ENV CUSTOM_NODES_PATH=${COMFYUI_PATH}/custom_nodes
 ENV MODELS_PATH=/models
 
+# GPU architecture — override at build time if needed: --build-arg TORCH_CUDA_ARCH_LIST="8.9"
+ARG TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;8.9;9.0"
+ENV TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST}
+
 # ─────────────────────────────────────────────
 # System dependencies + Python 3.12 via deadsnakes PPA
 # ─────────────────────────────────────────────
@@ -79,11 +83,7 @@ RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3DWrapper.git \
     ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
     cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
     pip install -r requirements.txt
-
-# Build custom_rasterizer from source (Linux — no MSVC needed)
-ENV TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;8.9;9.0"
-RUN cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper/hy3dgen/texgen/custom_rasterizer && \
-    pip install .
+# NOTE: custom_rasterizer is compiled at first container startup (requires GPU)
 
 # ─────────────────────────────────────────────
 # ComfyUI-Direct3D-S2 — urbanstepa fork
@@ -94,14 +94,11 @@ RUN git clone https://github.com/urbanstepa/ComfyUI-Direct3D-S2.git \
     pip install -r requirements.txt
 
 # Build torchsparse from source — urbanstepa fork
+# NOTE: This also requires GPU at runtime if it fails here on CI
 RUN git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse && \
     cd /tmp/torchsparse && \
-    pip install . && \
+    pip install . || echo "torchsparse build failed, will retry at runtime" && \
     rm -rf /tmp/torchsparse
-
-# Build voxelize extension
-RUN cd ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2/voxelize && \
-    pip install .
 
 # ─────────────────────────────────────────────
 # Model directory (mounted at runtime)
@@ -120,7 +117,7 @@ RUN ln -sf ${MODELS_PATH} ${COMFYUI_PATH}/models
 COPY config/extra_model_paths.yaml ${COMFYUI_PATH}/extra_model_paths.yaml
 
 # ─────────────────────────────────────────────
-# Entrypoint
+# Entrypoint — builds CUDA extensions on first run
 # ─────────────────────────────────────────────
 COPY scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
