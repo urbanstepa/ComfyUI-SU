@@ -10,12 +10,16 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || ec
 
 # ─────────────────────────────────────────────
 # Build CUDA extensions on first run
+# Uses setup.py directly to avoid pip's isolated build env
+# which doesn't have access to the system torch
 # ─────────────────────────────────────────────
+
 RASTERIZER_STAMP="/opt/.custom_rasterizer_built"
 if [ ! -f "$RASTERIZER_STAMP" ]; then
     echo ">>> First run: building custom_rasterizer..."
     cd /opt/ComfyUI/custom_nodes/comfyui-hunyuan3dwrapper/hy3dgen/texgen/custom_rasterizer
-    pip install . && touch "$RASTERIZER_STAMP" && echo ">>> custom_rasterizer built successfully"
+    python setup.py install && touch "$RASTERIZER_STAMP" && echo ">>> custom_rasterizer built successfully" \
+        || echo ">>> custom_rasterizer build failed - texture generation will be unavailable"
     cd /opt/ComfyUI
 else
     echo ">>> custom_rasterizer already built, skipping"
@@ -25,7 +29,8 @@ VOXELIZE_STAMP="/opt/.voxelize_built"
 if [ ! -f "$VOXELIZE_STAMP" ]; then
     echo ">>> First run: building voxelize..."
     cd /opt/ComfyUI/custom_nodes/ComfyUI-Direct3D-S2/voxelize
-    pip install . && touch "$VOXELIZE_STAMP" && echo ">>> voxelize built successfully"
+    python setup.py install && touch "$VOXELIZE_STAMP" && echo ">>> voxelize built successfully" \
+        || echo ">>> voxelize build failed - Direct3D-S2 voxelization will be unavailable"
     cd /opt/ComfyUI
 else
     echo ">>> voxelize already built, skipping"
@@ -36,7 +41,8 @@ if [ ! -f "$TORCHSPARSE_STAMP" ]; then
     echo ">>> First run: building torchsparse..."
     git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse
     cd /tmp/torchsparse
-    pip install . && touch "$TORCHSPARSE_STAMP" && echo ">>> torchsparse built successfully"
+    python setup.py install && touch "$TORCHSPARSE_STAMP" && echo ">>> torchsparse built successfully" \
+        || echo ">>> torchsparse build failed - Direct3D-S2 will be unavailable"
     rm -rf /tmp/torchsparse
     cd /opt/ComfyUI
 else
