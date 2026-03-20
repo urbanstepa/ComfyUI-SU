@@ -3,8 +3,6 @@
 #
 # Uses docker run + commit because docker build does not support --gpus.
 
-$ErrorActionPreference = "Stop"
-
 $TempContainer = "comfyui-prebuilt-tmp"
 $TargetImage   = "comfyui-3d-prebuilt:latest"
 $BaseImage     = "ghcr.io/urbanstepa/comfyui-su:latest"
@@ -14,7 +12,7 @@ Write-Host "This will take several minutes on first build."
 Write-Host ""
 
 # Clean up any leftover temp container from a previous failed run
-docker rm $TempContainer 2>$null; $global:LASTEXITCODE = 0
+docker rm $TempContainer 2>$null
 
 $buildScript =
     "set -e" +
@@ -33,8 +31,9 @@ $buildScript =
 docker run --gpus all --name $TempContainer $BaseImage /bin/bash -c $buildScript
 
 if ($LASTEXITCODE -ne 0) {
-    docker rm $TempContainer 2>$null; $global:LASTEXITCODE = 0
-    throw "Extension build failed - see output above."
+    docker rm $TempContainer 2>$null
+    Write-Error "Extension build failed - see output above."
+    exit 1
 }
 
 Write-Host ""
