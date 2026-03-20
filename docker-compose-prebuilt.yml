@@ -1,6 +1,6 @@
 services:
   comfyui:
-    image: comfyui-3d-prebuilt:latest
+    image: ghcr.io/urbanstepa/comfyui-3d-prebuilt:latest
     container_name: comfyui-3d
     restart: unless-stopped
 

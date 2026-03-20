@@ -8,11 +8,18 @@ echo "================================================"
 # Print GPU info
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo "GPU info unavailable"
 
+# Show prebuilt manifest if present
+if [ -f /opt/.prebuilt-manifest ]; then
+    echo "Prebuilt extensions:"
+    sed 's/^/  /' /opt/.prebuilt-manifest
+fi
+
 # ─────────────────────────────────────────────
 # Build CUDA extensions on first run
 # Uses setup.py directly to avoid pip's isolated build env
 # which doesn't have access to the system torch
 # ─────────────────────────────────────────────
+export MAX_JOBS="${MAX_JOBS:-1}"   # Limit parallel compilations to avoid OOM
 
 RASTERIZER_STAMP="/opt/.custom_rasterizer_built"
 if [ ! -f "$RASTERIZER_STAMP" ]; then
