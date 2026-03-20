@@ -34,7 +34,7 @@ docker run --gpus all --name $TempContainer $BaseImage /bin/bash -c $buildScript
 
 if ($LASTEXITCODE -ne 0) {
     docker rm $TempContainer 2>$null
-    throw "Extension build failed — see output above."
+    throw "Extension build failed - see output above."
 }
 
 Write-Host ""
