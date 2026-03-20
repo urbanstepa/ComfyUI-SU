@@ -21,13 +21,15 @@ ENV CUSTOM_NODES_PATH=${COMFYUI_PATH}/custom_nodes
 ENV MODELS_PATH=/models
 
 # ─────────────────────────────────────────────
-# System dependencies
+# System dependencies + Python 3.12 via deadsnakes PPA
 # ─────────────────────────────────────────────
 RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa -y \
+    && apt-get update && apt-get install -y \
     python3.12 \
     python3.12-dev \
     python3.12-venv \
-    python3-pip \
     git \
     git-lfs \
     wget \
@@ -42,6 +44,9 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install pip for Python 3.12
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
 
 # Make python3.12 the default
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
