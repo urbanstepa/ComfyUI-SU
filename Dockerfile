@@ -1,6 +1,7 @@
 # ComfyUI 3D Docker Image
 # Includes: comfyui-hunyuan3dwrapper, ComfyUI-Direct3D-S2
 # Base: CUDA 13.0 + Python 3.12 + torch 2.10.0+cu130
+# Sources: github.com/urbanstepa
 
 FROM nvidia/cuda:13.0.0-devel-ubuntu22.04
 
@@ -33,6 +34,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
     ninja-build \
+    libsparsehash-dev \
     libgl1 \
     libglib2.0-0 \
     libsm6 \
@@ -53,49 +55,43 @@ RUN pip install torch==2.10.0 torchvision torchaudio \
     --index-url https://download.pytorch.org/whl/cu130
 
 # ─────────────────────────────────────────────
-# ComfyUI
+# ComfyUI — urbanstepa fork
 # ─────────────────────────────────────────────
-RUN git clone https://github.com/comfyanonymous/ComfyUI.git ${COMFYUI_PATH} && \
+RUN git clone https://github.com/urbanstepa/ComfyUI.git ${COMFYUI_PATH} && \
     cd ${COMFYUI_PATH} && \
     pip install -r requirements.txt
 
 # ─────────────────────────────────────────────
-# ComfyUI Manager
+# ComfyUI Manager — urbanstepa fork
 # ─────────────────────────────────────────────
-RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git \
+RUN git clone https://github.com/urbanstepa/ComfyUI-Manager.git \
     ${CUSTOM_NODES_PATH}/ComfyUI-Manager && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Manager && \
     pip install -r requirements.txt
 
 # ─────────────────────────────────────────────
-# comfyui-hunyuan3dwrapper
+# comfyui-hunyuan3dwrapper — urbanstepa fork
 # ─────────────────────────────────────────────
-RUN git clone https://github.com/kijai/ComfyUI-HunyuanVideoWrapper.git \
+RUN git clone https://github.com/urbanstepa/ComfyUI-HunyuanVideoWrapper.git \
     ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
     cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
     pip install -r requirements.txt
 
-# Build custom_rasterizer from source (Linux - no MSVC needed)
+# Build custom_rasterizer from source (Linux — no MSVC needed)
 ENV TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;8.9;9.0"
 RUN cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper/hy3dgen/texgen/custom_rasterizer && \
     pip install .
 
 # ─────────────────────────────────────────────
-# ComfyUI-Direct3D-S2
+# ComfyUI-Direct3D-S2 — urbanstepa fork
 # ─────────────────────────────────────────────
-RUN git clone https://github.com/visualbruno/ComfyUI-Direct3D-S2.git \
+RUN git clone https://github.com/urbanstepa/ComfyUI-Direct3D-S2.git \
     ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2 && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2 && \
     pip install -r requirements.txt
 
-# Install sparsehash headers for torchsparse build
-RUN git clone https://github.com/sparsehash/sparsehash.git /tmp/sparsehash && \
-    cp -r /tmp/sparsehash/src/sparsehash /usr/local/include/sparsehash && \
-    cp -r /tmp/sparsehash/src/sparsehash /usr/local/include/google && \
-    rm -rf /tmp/sparsehash
-
-# Build torchsparse from source
-RUN git clone https://github.com/mit-han-lab/torchsparse.git /tmp/torchsparse && \
+# Build torchsparse from source — urbanstepa fork
+RUN git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse && \
     cd /tmp/torchsparse && \
     pip install . && \
     rm -rf /tmp/torchsparse
