@@ -25,6 +25,7 @@ ENV MODELS_PATH=/models
 # ─────────────────────────────────────────────
 RUN apt-get update && apt-get install -y \
     software-properties-common \
+    curl \
     && add-apt-repository ppa:deadsnakes/ppa -y \
     && apt-get update && apt-get install -y \
     python3.12 \
@@ -33,7 +34,6 @@ RUN apt-get update && apt-get install -y \
     git \
     git-lfs \
     wget \
-    curl \
     build-essential \
     ninja-build \
     libsparsehash-dev \
@@ -45,12 +45,10 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install pip for Python 3.12
-RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
-
-# Make python3.12 the default
+# Set python3.12 as default, then install pip
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
-    update-alternatives --install /usr/bin/python python python3 1 && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 && \
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12 && \
     python3.12 -m pip install --upgrade pip setuptools wheel
 
 # ─────────────────────────────────────────────
