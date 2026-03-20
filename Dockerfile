@@ -75,7 +75,7 @@ RUN git clone https://github.com/urbanstepa/ComfyUI-Manager.git \
 # ─────────────────────────────────────────────
 # comfyui-hunyuan3dwrapper — urbanstepa fork
 # ─────────────────────────────────────────────
-RUN git clone https://github.com/urbanstepa/ComfyUI-HunyuanVideoWrapper.git \
+RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3DWrapper.git \
     ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
     cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
     pip install -r requirements.txt
