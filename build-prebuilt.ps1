@@ -23,15 +23,14 @@ $BaseImage     = "ghcr.io/urbanstepa/comfyui-su:latest"
 $BuildBase     = Get-Date -Format "yyyyMMdd-HHmm"
 $StepNum       = 0
 
-# Verify ghcr.io login before starting
-Write-Host "Checking ghcr.io login..."
-docker login ghcr.io --get-login 2>$null | Out-Null
+# Pull base image (also verifies registry access)
+Write-Host "Pulling base image $BaseImage ..."
+docker pull $BaseImage
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Not logged in to ghcr.io. Please log in first:"
+    Write-Error "Cannot pull base image. Make sure you are logged in:"
     Write-Host "  echo YOUR_PAT | docker login ghcr.io -u urbanstepa --password-stdin"
     exit 1
 }
-Write-Host "Registry login OK."
 Write-Host ""
 
 # Check which stamps already exist in the resume image

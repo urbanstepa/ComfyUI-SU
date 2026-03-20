@@ -23,14 +23,13 @@ if [ "$1" = "--resume" ]; then
     RESUME=true
 fi
 
-# Verify ghcr.io login before starting
-echo "Checking ghcr.io login..."
-if ! docker login ghcr.io --get-login > /dev/null 2>&1; then
-    echo "ERROR: Not logged in to ghcr.io. Please log in first:"
+# Pull base image (also verifies registry access)
+echo "Pulling base image $BASE_IMAGE ..."
+if ! docker pull "$BASE_IMAGE"; then
+    echo "ERROR: Cannot pull base image. Make sure you are logged in:"
     echo "  echo YOUR_PAT | docker login ghcr.io -u urbanstepa --password-stdin"
     exit 1
 fi
-echo "Registry login OK."
 echo ""
 
 # Check which stamps already exist in the resume image
