@@ -10,4 +10,5 @@ comfyui:
   loras: loras/
   upscale_models: upscale_models/
   unet: unet/
+  text_encoders: text_encoders/
   vae: vae/
