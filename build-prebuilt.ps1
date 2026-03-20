@@ -15,14 +15,15 @@ Write-Host ""
 docker rm $TempContainer 2>$null
 
 $buildScript =
-    "set -e" +
-    " && echo '>>> Building custom_rasterizer...'" +
+    "set -e && export MAX_JOBS=1" +
+    " && echo '>>> Building custom_rasterizer (MAX_JOBS=1 to avoid OOM)...'" +
     " && cd /opt/ComfyUI/custom_nodes/comfyui-hunyuan3dwrapper/hy3dgen/texgen/custom_rasterizer" +
     " && python setup.py install && touch /opt/.custom_rasterizer_built" +
     " && echo '>>> Building voxelize...'" +
     " && cd /opt/ComfyUI/custom_nodes/ComfyUI-Direct3D-S2/voxelize" +
     " && python setup.py install && touch /opt/.voxelize_built" +
     " && echo '>>> Building torchsparse...'" +
+    " && rm -rf /tmp/torchsparse" +
     " && git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse" +
     " && cd /tmp/torchsparse && python setup.py install && rm -rf /tmp/torchsparse" +
     " && touch /opt/.torchsparse_built" +

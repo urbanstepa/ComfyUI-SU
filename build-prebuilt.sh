@@ -19,7 +19,9 @@ docker rm "$TEMP_CONTAINER" 2>/dev/null || true
 
 docker run --gpus all --name "$TEMP_CONTAINER" "$BASE_IMAGE" /bin/bash -c "
     set -e
-    echo '>>> Building custom_rasterizer...'
+    export MAX_JOBS=1   # Compile one file at a time to avoid OOM
+
+    echo '>>> Building custom_rasterizer (MAX_JOBS=1 to avoid OOM)...'
     cd /opt/ComfyUI/custom_nodes/comfyui-hunyuan3dwrapper/hy3dgen/texgen/custom_rasterizer
     python setup.py install && touch /opt/.custom_rasterizer_built
 
@@ -28,6 +30,7 @@ docker run --gpus all --name "$TEMP_CONTAINER" "$BASE_IMAGE" /bin/bash -c "
     python setup.py install && touch /opt/.voxelize_built
 
     echo '>>> Building torchsparse...'
+    rm -rf /tmp/torchsparse
     git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse
     cd /tmp/torchsparse && python setup.py install && rm -rf /tmp/torchsparse
     touch /opt/.torchsparse_built

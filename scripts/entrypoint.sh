@@ -13,6 +13,7 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || ec
 # Uses setup.py directly to avoid pip's isolated build env
 # which doesn't have access to the system torch
 # ─────────────────────────────────────────────
+export MAX_JOBS="${MAX_JOBS:-1}"   # Limit parallel compilations to avoid OOM
 
 RASTERIZER_STAMP="/opt/.custom_rasterizer_built"
 if [ ! -f "$RASTERIZER_STAMP" ]; then
