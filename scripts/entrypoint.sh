@@ -8,20 +8,14 @@ echo "================================================"
 # Print GPU info
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo "GPU info unavailable"
 
-# Show prebuilt manifest if present
-if [ -f /opt/.prebuilt-manifest ]; then
-    echo "Prebuilt extensions:"
-    sed 's/^/  /' /opt/.prebuilt-manifest
-fi
-
 # ─────────────────────────────────────────────
-# Check CUDA extensions (compiled at image build time)
+# Check built extensions (compiled at image build time)
 # ─────────────────────────────────────────────
-for ext in custom_rasterizer voxelize torchsparse; do
+for ext in custom_rasterizer voxelize torchsparse comfyui_essentials comfyui_hunyuan3d21; do
     if [ -f "/opt/.${ext}_built" ]; then
         echo ">>> ${ext}: ready"
     else
-        echo ">>> WARNING: ${ext} not compiled in this image"
+        echo ">>> WARNING: ${ext} not found in this image"
     fi
 done
 
