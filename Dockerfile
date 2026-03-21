@@ -126,6 +126,15 @@ RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
     touch /opt/.comfyui_essentials_built
 
 # ─────────────────────────────────────────────
+# ComfyUI-Hunyuan3d-2-1 — Hunyuan3D v2.1 mesh export, decimation, transparency
+# ─────────────────────────────────────────────
+RUN git clone https://github.com/visualbruno/ComfyUI-Hunyuan3d-2-1.git \
+    ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
+    cd ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
+    pip install -r requirements.txt && \
+    touch /opt/.comfyui_hunyuan3d21_built
+
+# ─────────────────────────────────────────────
 # Model directory (mounted at runtime)
 # ─────────────────────────────────────────────
 RUN mkdir -p ${MODELS_PATH} && \
@@ -147,7 +156,8 @@ COPY config/extra_model_paths.yaml ${COMFYUI_PATH}/extra_model_paths.yaml
 RUN echo "custom_rasterizer | docker build" >> /opt/.prebuilt-manifest && \
     echo "voxelize | docker build" >> /opt/.prebuilt-manifest && \
     echo "torchsparse | docker build" >> /opt/.prebuilt-manifest && \
-    echo "comfyui_essentials | docker build" >> /opt/.prebuilt-manifest
+    echo "comfyui_essentials | docker build" >> /opt/.prebuilt-manifest && \
+    echo "comfyui_hunyuan3d21 | docker build" >> /opt/.prebuilt-manifest
 
 # ─────────────────────────────────────────────
 # Entrypoint

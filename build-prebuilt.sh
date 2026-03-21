@@ -37,7 +37,7 @@ BUILT_STAMPS=""
 if [ "$RESUME" = true ]; then
     echo "Resuming from ${LOCAL_IMAGE}:latest ..."
     BUILT_STAMPS=$(docker run --rm --entrypoint /bin/bash "${LOCAL_IMAGE}:latest" -c \
-        "ls /opt/.custom_rasterizer_built /opt/.voxelize_built /opt/.torchsparse_built /opt/.comfyui_essentials_built 2>/dev/null" 2>/dev/null || true)
+        "ls /opt/.custom_rasterizer_built /opt/.voxelize_built /opt/.torchsparse_built /opt/.comfyui_essentials_built /opt/.comfyui_hunyuan3d21_built 2>/dev/null" 2>/dev/null || true)
     docker tag "${LOCAL_IMAGE}:latest" "${LOCAL_IMAGE}:${BUILD_BASE}.0"
     echo "Already built: $BUILT_STAMPS"
     echo ""
@@ -126,6 +126,13 @@ build_step "comfyui_essentials" "/opt/.comfyui_essentials_built" "$LOCAL_IMAGE:l
     && git clone https://github.com/urbanstepa/ComfyUI_essentials.git /opt/ComfyUI/custom_nodes/ComfyUI_essentials \
     && cd /opt/ComfyUI/custom_nodes/ComfyUI_essentials && pip install -r requirements.txt \
     && touch /opt/.comfyui_essentials_built"
+
+# Step 5: ComfyUI-Hunyuan3d-2-1 — Hunyuan3D v2.1 nodes (no GPU needed)
+build_step "comfyui_hunyuan3d21" "/opt/.comfyui_hunyuan3d21_built" "$LOCAL_IMAGE:latest" \
+    "set -e \
+    && git clone https://github.com/visualbruno/ComfyUI-Hunyuan3d-2-1.git /opt/ComfyUI/custom_nodes/ComfyUI-Hunyuan3d-2-1 \
+    && cd /opt/ComfyUI/custom_nodes/ComfyUI-Hunyuan3d-2-1 && pip install -r requirements.txt \
+    && touch /opt/.comfyui_hunyuan3d21_built"
 
 echo ""
 echo "All extensions built successfully!"
