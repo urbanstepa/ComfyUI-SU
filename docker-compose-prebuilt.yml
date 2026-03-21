@@ -1,6 +1,6 @@
 services:
   comfyui:
-    image: ghcr.io/urbanstepa/comfyui-3d-prebuilt:latest
+    image: ghcr.io/urbanstepa/comfyui-su:latest
     container_name: comfyui-3d
     entrypoint: ["/entrypoint.sh"]
     restart: unless-stopped
