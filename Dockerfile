@@ -128,10 +128,10 @@ RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
 # ─────────────────────────────────────────────
 # ComfyUI-Hunyuan3d-2-1 — Hunyuan3D v2.1 mesh export, decimation, transparency
 # ─────────────────────────────────────────────
-RUN git clone https://github.com/visualbruno/ComfyUI-Hunyuan3d-2-1.git \
+RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3d-2-1.git \
     ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
-    pip install -r requirements.txt && \
+    pip install --ignore-installed -r requirements.txt && \
     touch /opt/.comfyui_hunyuan3d21_built
 
 # ─────────────────────────────────────────────
