@@ -110,7 +110,8 @@ RUN cd ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2/voxelize && \
 # Build torchsparse from source — urbanstepa fork
 # (CUDA cross-compile, no GPU needed)
 # ─────────────────────────────────────────────
-RUN git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse && \
+RUN pip install rootpath && \
+    git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse && \
     cd /tmp/torchsparse && \
     MAX_JOBS=1 python setup.py install && \
     touch /opt/.torchsparse_built && \
