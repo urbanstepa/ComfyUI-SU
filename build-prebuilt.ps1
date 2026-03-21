@@ -136,7 +136,7 @@ Build-Step "torchsparse" "/opt/.torchsparse_built" "${LocalImage}:latest" (
 # Step 4: ComfyUI_essentials — custom nodes (no GPU needed)
 Build-Step "comfyui_essentials" "/opt/.comfyui_essentials_built" "${LocalImage}:latest" (
     "set -e" +
-    " && git clone https://github.com/cubiq/ComfyUI_essentials.git /opt/ComfyUI/custom_nodes/ComfyUI_essentials" +
+    " && git clone https://github.com/urbanstepa/ComfyUI_essentials.git /opt/ComfyUI/custom_nodes/ComfyUI_essentials" +
     " && cd /opt/ComfyUI/custom_nodes/ComfyUI_essentials && pip install -r requirements.txt" +
     " && touch /opt/.comfyui_essentials_built"
 )
