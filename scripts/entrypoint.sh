@@ -15,47 +15,15 @@ if [ -f /opt/.prebuilt-manifest ]; then
 fi
 
 # ─────────────────────────────────────────────
-# Build CUDA extensions on first run
-# Uses setup.py directly to avoid pip's isolated build env
-# which doesn't have access to the system torch
+# Check CUDA extensions (compiled at image build time)
 # ─────────────────────────────────────────────
-export MAX_JOBS="${MAX_JOBS:-1}"   # Limit parallel compilations to avoid OOM
-
-RASTERIZER_STAMP="/opt/.custom_rasterizer_built"
-if [ ! -f "$RASTERIZER_STAMP" ]; then
-    echo ">>> First run: building custom_rasterizer..."
-    cd /opt/ComfyUI/custom_nodes/comfyui-hunyuan3dwrapper/hy3dgen/texgen/custom_rasterizer
-    python setup.py install && touch "$RASTERIZER_STAMP" && echo ">>> custom_rasterizer built successfully" \
-        || echo ">>> custom_rasterizer build failed - texture generation will be unavailable"
-    cd /opt/ComfyUI
-else
-    echo ">>> custom_rasterizer already built, skipping"
-fi
-
-VOXELIZE_STAMP="/opt/.voxelize_built"
-if [ ! -f "$VOXELIZE_STAMP" ]; then
-    echo ">>> First run: building voxelize..."
-    cd /opt/ComfyUI/custom_nodes/ComfyUI-Direct3D-S2/voxelize
-    python setup.py install && touch "$VOXELIZE_STAMP" && echo ">>> voxelize built successfully" \
-        || echo ">>> voxelize build failed - Direct3D-S2 voxelization will be unavailable"
-    cd /opt/ComfyUI
-else
-    echo ">>> voxelize already built, skipping"
-fi
-
-TORCHSPARSE_STAMP="/opt/.torchsparse_built"
-if [ ! -f "$TORCHSPARSE_STAMP" ]; then
-    echo ">>> First run: building torchsparse..."
-    rm -rf /tmp/torchsparse
-    git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse
-    cd /tmp/torchsparse
-    python setup.py install && touch "$TORCHSPARSE_STAMP" && echo ">>> torchsparse built successfully" \
-        || echo ">>> torchsparse build failed - Direct3D-S2 will be unavailable"
-    rm -rf /tmp/torchsparse
-    cd /opt/ComfyUI
-else
-    echo ">>> torchsparse already built, skipping"
-fi
+for ext in custom_rasterizer voxelize torchsparse; do
+    if [ -f "/opt/.${ext}_built" ]; then
+        echo ">>> ${ext}: ready"
+    else
+        echo ">>> WARNING: ${ext} not compiled in this image"
+    fi
+done
 
 # ─────────────────────────────────────────────
 # Start ComfyUI
