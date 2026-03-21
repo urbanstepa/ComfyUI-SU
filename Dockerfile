@@ -47,6 +47,7 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libgomp1 \
+    libopengl0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set python3.12 as default, then install pip
