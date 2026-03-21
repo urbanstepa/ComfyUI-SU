@@ -47,6 +47,7 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libgomp1 \
+    libopengl0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set python3.12 as default, then install pip
@@ -83,7 +84,12 @@ RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3DWrapper.git \
     ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
     cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
     pip install -r requirements.txt
-# NOTE: custom_rasterizer is compiled at first container startup (requires GPU)
+# ─────────────────────────────────────────────
+# Build custom_rasterizer (CUDA cross-compile, no GPU needed)
+# ─────────────────────────────────────────────
+RUN cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper/hy3dgen/texgen/custom_rasterizer && \
+    MAX_JOBS=1 python setup.py install && \
+    touch /opt/.custom_rasterizer_built
 
 # ─────────────────────────────────────────────
 # ComfyUI-Direct3D-S2 — urbanstepa fork
@@ -93,11 +99,21 @@ RUN git clone https://github.com/urbanstepa/ComfyUI-Direct3D-S2.git \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2 && \
     pip install -r requirements.txt
 
+# ─────────────────────────────────────────────
+# Build voxelize (CUDA cross-compile, no GPU needed)
+# ─────────────────────────────────────────────
+RUN cd ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2/voxelize && \
+    MAX_JOBS=1 python setup.py install && \
+    touch /opt/.voxelize_built
+
+# ─────────────────────────────────────────────
 # Build torchsparse from source — urbanstepa fork
-# NOTE: This also requires GPU at runtime if it fails here on CI
+# (CUDA cross-compile, no GPU needed)
+# ─────────────────────────────────────────────
 RUN git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse && \
     cd /tmp/torchsparse && \
-    pip install . || echo "torchsparse build failed, will retry at runtime" && \
+    MAX_JOBS=1 python setup.py install && \
+    touch /opt/.torchsparse_built && \
     rm -rf /tmp/torchsparse
 
 # ─────────────────────────────────────────────
@@ -106,7 +122,8 @@ RUN git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse && 
 RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
     ${CUSTOM_NODES_PATH}/ComfyUI_essentials && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI_essentials && \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && \
+    touch /opt/.comfyui_essentials_built
 
 # ─────────────────────────────────────────────
 # Model directory (mounted at runtime)
@@ -125,7 +142,15 @@ RUN ln -sf ${MODELS_PATH} ${COMFYUI_PATH}/models
 COPY config/extra_model_paths.yaml ${COMFYUI_PATH}/extra_model_paths.yaml
 
 # ─────────────────────────────────────────────
-# Entrypoint — builds CUDA extensions on first run
+# Build manifest — record what was compiled
+# ─────────────────────────────────────────────
+RUN echo "custom_rasterizer | docker build" >> /opt/.prebuilt-manifest && \
+    echo "voxelize | docker build" >> /opt/.prebuilt-manifest && \
+    echo "torchsparse | docker build" >> /opt/.prebuilt-manifest && \
+    echo "comfyui_essentials | docker build" >> /opt/.prebuilt-manifest
+
+# ─────────────────────────────────────────────
+# Entrypoint
 # ─────────────────────────────────────────────
 COPY scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
