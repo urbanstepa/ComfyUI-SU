@@ -118,6 +118,12 @@ RUN pip install rootpath backports.cached-property && \
     rm -rf /tmp/torchsparse
 
 # ─────────────────────────────────────────────
+# flash-attn — required by ComfyUI-Direct3D-S2 attention module
+# ─────────────────────────────────────────────
+RUN MAX_JOBS=1 pip install flash-attn --no-build-isolation && \
+    touch /opt/.flash_attn_built
+
+# ─────────────────────────────────────────────
 # ComfyUI Essentials — image resize, remove bg, mask preview, etc.
 # ─────────────────────────────────────────────
 RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
@@ -133,8 +139,14 @@ RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
 RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3d-2-1.git \
     ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
-    pip install --ignore-installed -r requirements.txt && \
+    pip install -r requirements.txt && \
     touch /opt/.comfyui_hunyuan3d21_built
+
+# ─────────────────────────────────────────────
+# Re-pin PyTorch cu130 — some requirements.txt may override with cu128
+# ─────────────────────────────────────────────
+RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
+    --index-url https://download.pytorch.org/whl/cu130
 
 # ─────────────────────────────────────────────
 # Model directory (mounted at runtime)
