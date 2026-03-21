@@ -2,6 +2,7 @@ services:
   comfyui:
     image: ghcr.io/urbanstepa/comfyui-3d-prebuilt:latest
     container_name: comfyui-3d
+    entrypoint: ["/entrypoint.sh"]
     restart: unless-stopped
 
     deploy:
@@ -18,15 +19,18 @@ services:
     volumes:
       # Adjust left side to your models path
       - "D:/ComfyUI_installed_2/models:/models"
+      - "E:/Models/diffusion_models:/models/diffusion_models/external"
+      - "E:/Models/text_encoders:/models/text_encoders/external"
       # Outputs and user data
-      - comfyui_output:/opt/ComfyUI/output
-      - comfyui_input:/opt/ComfyUI/input
-      - comfyui_user:/opt/ComfyUI/user
+      - "D:/ComfyUI_installed_2/output:/opt/ComfyUI/output"
+      - "D:/ComfyUI_installed_2/input:/opt/ComfyUI/input"
+      - "D:/ComfyUI_installed_2/user:/opt/ComfyUI/user"
       # NOTE: no comfyui_extensions volume — CUDA extensions are baked into the image
 
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - LD_PRELOAD=/usr/local/cuda/lib64/libcublas.so.13.0.0.19:/usr/local/cuda/lib64/libcublasLt.so.13.0.0.19
       - COMFYUI_ARGS=--listen 0.0.0.0 --port 8188 --highvram
 
     healthcheck:
@@ -35,8 +39,3 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
-
-volumes:
-  comfyui_output:
-  comfyui_input:
-  comfyui_user:

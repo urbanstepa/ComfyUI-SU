@@ -86,7 +86,7 @@ function Build-Step {
 
     # Commit as intermediate image — restore original entrypoint and clear CMD
     # (docker run --entrypoint overrides both, and docker commit preserves them)
-    docker commit --change='ENTRYPOINT ["/entrypoint.sh"]' --change='CMD []' $TempContainer "${LocalImage}:${stepTag}"
+    docker commit --change "ENTRYPOINT [/entrypoint.sh]" --change "CMD []" $TempContainer "${LocalImage}:${stepTag}"
     docker rm $TempContainer | Out-Null
 
     # Push with unique step tag + update latest
