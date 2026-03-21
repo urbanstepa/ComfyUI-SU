@@ -101,6 +101,14 @@ RUN git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse && 
     rm -rf /tmp/torchsparse
 
 # ─────────────────────────────────────────────
+# ComfyUI Essentials — image resize, remove bg, mask preview, etc.
+# ─────────────────────────────────────────────
+RUN git clone https://github.com/cubiq/ComfyUI_essentials.git \
+    ${CUSTOM_NODES_PATH}/ComfyUI_essentials && \
+    cd ${CUSTOM_NODES_PATH}/ComfyUI_essentials && \
+    pip install -r requirements.txt
+
+# ─────────────────────────────────────────────
 # Model directory (mounted at runtime)
 # ─────────────────────────────────────────────
 RUN mkdir -p ${MODELS_PATH} && \
