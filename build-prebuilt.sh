@@ -37,7 +37,7 @@ BUILT_STAMPS=""
 if [ "$RESUME" = true ]; then
     echo "Resuming from ${LOCAL_IMAGE}:latest ..."
     BUILT_STAMPS=$(docker run --rm --entrypoint /bin/bash "${LOCAL_IMAGE}:latest" -c \
-        "ls /opt/.custom_rasterizer_built /opt/.voxelize_built /opt/.torchsparse_built 2>/dev/null" 2>/dev/null || true)
+        "ls /opt/.custom_rasterizer_built /opt/.voxelize_built /opt/.torchsparse_built /opt/.comfyui_essentials_built 2>/dev/null" 2>/dev/null || true)
     docker tag "${LOCAL_IMAGE}:latest" "${LOCAL_IMAGE}:${BUILD_BASE}.0"
     echo "Already built: $BUILT_STAMPS"
     echo ""
@@ -119,8 +119,15 @@ build_step "torchsparse" "/opt/.torchsparse_built" "$LOCAL_IMAGE:latest" \
     && rm -rf /tmp/torchsparse \
     && touch /opt/.torchsparse_built"
 
+# Step 4: ComfyUI_essentials — custom nodes (no GPU needed)
+build_step "comfyui_essentials" "/opt/.comfyui_essentials_built" "$LOCAL_IMAGE:latest" \
+    "set -e \
+    && git clone https://github.com/cubiq/ComfyUI_essentials.git /opt/ComfyUI/custom_nodes/ComfyUI_essentials \
+    && cd /opt/ComfyUI/custom_nodes/ComfyUI_essentials && pip install -r requirements.txt \
+    && touch /opt/.comfyui_essentials_built"
+
 echo ""
-echo "All CUDA extensions built successfully!"
+echo "All extensions built successfully!"
 echo ""
 echo "Done!"
 echo "  Latest: $REGISTRY:latest"
