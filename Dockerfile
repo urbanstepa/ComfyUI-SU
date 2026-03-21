@@ -118,6 +118,12 @@ RUN pip install rootpath backports.cached-property && \
     rm -rf /tmp/torchsparse
 
 # ─────────────────────────────────────────────
+# flash-attn — required by ComfyUI-Direct3D-S2 attention module
+# ─────────────────────────────────────────────
+RUN MAX_JOBS=1 pip install flash-attn --no-build-isolation && \
+    touch /opt/.flash_attn_built
+
+# ─────────────────────────────────────────────
 # ComfyUI Essentials — image resize, remove bg, mask preview, etc.
 # ─────────────────────────────────────────────
 RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
