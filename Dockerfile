@@ -59,7 +59,7 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
 # ─────────────────────────────────────────────
 # PyTorch 2.10.0 + CUDA 13.0
 # ─────────────────────────────────────────────
-RUN pip install torch==2.10.0 torchvision torchaudio \
+RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
     --index-url https://download.pytorch.org/whl/cu130
 
 # ─────────────────────────────────────────────
@@ -123,6 +123,7 @@ RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
     ${CUSTOM_NODES_PATH}/ComfyUI_essentials && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI_essentials && \
     pip install -r requirements.txt && \
+    pip install "rembg[gpu]" && \
     touch /opt/.comfyui_essentials_built
 
 # ─────────────────────────────────────────────
