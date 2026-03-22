@@ -38,11 +38,17 @@ RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3DWrapper.git \
 # ─────────────────────────────────────────────
 # ComfyUI-Direct3D-S2 — urbanstepa fork
 # ─────────────────────────────────────────────
+# Patch: direct3d_s2/utils/rembg.py — BiRefNet dtype mismatch
+#   The BiRefNet background removal model (ZhengPeng7/BiRefNet) is loaded via
+#   transformers AutoModelForImageSegmentation which defaults to fp16 weights.
+#   However, the input tensor from torchvision transforms is always float32.
+#   This causes: RuntimeError: Input type (float) and bias type (c10::Half) should be the same
+#   at the first Conv2d layer (patch_embed.proj).
+#   Fix: cast input_images to match the model's parameter dtype before inference.
 RUN git clone https://github.com/urbanstepa/ComfyUI-Direct3D-S2.git \
     ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2 && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2 && \
     pip install -r requirements.txt && \
-    # Patch: cast BiRefNet input to model dtype (fixes float32 vs float16 mismatch) \
     sed -i 's/input_images = transform_image(image).unsqueeze(0).to(self.device)/input_images = transform_image(image).unsqueeze(0).to(device=self.device, dtype=next(self.birefnet_model.parameters()).dtype)/' \
     direct3d_s2/utils/rembg.py
 
