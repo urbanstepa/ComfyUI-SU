@@ -41,7 +41,10 @@ RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3DWrapper.git \
 RUN git clone https://github.com/urbanstepa/ComfyUI-Direct3D-S2.git \
     ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2 && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2 && \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && \
+    # Patch: cast BiRefNet input to model dtype (fixes float32 vs float16 mismatch) \
+    sed -i 's/input_images = transform_image(image).unsqueeze(0).to(self.device)/input_images = transform_image(image).unsqueeze(0).to(device=self.device, dtype=next(self.birefnet_model.parameters()).dtype)/' \
+    direct3d_s2/utils/rembg.py
 
 # ─────────────────────────────────────────────
 # ComfyUI Essentials — image resize, remove bg, mask preview, etc.
