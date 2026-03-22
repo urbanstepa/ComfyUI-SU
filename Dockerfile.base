@@ -1,0 +1,68 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# ComfyUI-SU Base Image
+#
+# The foundation layer that rarely changes:
+#   - CUDA 13.0 + Python 3.12 + system libraries
+#   - PyTorch 2.10.0+cu130
+#
+# Rebuild only when: CUDA version, Python version, or PyTorch version changes.
+# ──────────────────────────────────────────────────────────────────────────────
+
+FROM nvidia/cuda:13.0.0-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# CUDA environment
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+
+# Paths (must match the final Dockerfile)
+ENV COMFYUI_PATH=/opt/ComfyUI
+ENV CUSTOM_NODES_PATH=${COMFYUI_PATH}/custom_nodes
+ENV MODELS_PATH=/models
+
+# ─────────────────────────────────────────────
+# System dependencies + Python 3.12
+# ─────────────────────────────────────────────
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    curl \
+    && add-apt-repository ppa:deadsnakes/ppa -y \
+    && apt-get update && apt-get install -y \
+    python3.12 \
+    python3.12-dev \
+    python3.12-venv \
+    git \
+    git-lfs \
+    wget \
+    build-essential \
+    ninja-build \
+    libsparsehash-dev \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libopengl0 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 && \
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12 && \
+    python3.12 -m pip install --upgrade pip setuptools wheel
+
+# ─────────────────────────────────────────────
+# PyTorch 2.10.0 + CUDA 13.0
+# ─────────────────────────────────────────────
+RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
+    --index-url https://download.pytorch.org/whl/cu130
+
+# Remove distutils blinker to prevent conflicts with pip-managed packages
+RUN rm -rf /usr/lib/python3/dist-packages/blinker /usr/lib/python3/dist-packages/blinker-1.4.egg-info
+
+# Verify
+RUN python -c "import torch; print(f'PyTorch {torch.__version__} CUDA {torch.version.cuda}')"

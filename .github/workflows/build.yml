@@ -1,3 +1,12 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Build and push the final ComfyUI-SU Docker image
+#
+# Built on top of the base image (CUDA + Python + PyTorch).
+# Installs ComfyUI, custom nodes, CUDA wheels, and config.
+#
+# Base image: ghcr.io/urbanstepa/comfyui-su-base:latest
+#   (built separately via "Build Base Image" workflow)
+# ──────────────────────────────────────────────────────────────────────────────
 name: Build and Push Docker Image
 
 on:
@@ -30,8 +39,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── Resolve wheel URLs ───────────────────────────────────────────
-      # Priority: repo variable (manual override) > cuda-wheels release > empty (compile from source)
+      # ── Resolve wheel URLs from cuda-wheels release ────────────────
       - name: Resolve CUDA wheel URLs
         id: wheels
         env:
@@ -43,7 +51,6 @@ jobs:
           REPO="${{ github.repository }}"
           TAG="cuda-wheels"
 
-          # Try to get asset URLs from the persistent cuda-wheels release
           if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
             echo "Found $TAG release"
             ASSETS=$(gh release view "$TAG" --repo "$REPO" --json assets \
@@ -53,25 +60,20 @@ jobs:
             VOXELIZE_AUTO=$(echo "$ASSETS" | grep -iE 'udf_ext|voxelize' | awk '{print $2}' || true)
             TORCHSPARSE_AUTO=$(echo "$ASSETS" | grep -i 'torchsparse' | awk '{print $2}' || true)
           else
-            echo "No $TAG release found — will compile from source"
+            echo "No $TAG release found"
             CUSTOM_RASTERIZER_AUTO=""
             VOXELIZE_AUTO=""
             TORCHSPARSE_AUTO=""
           fi
 
-          # Repo variables take priority over auto-detected
-          CR="${CUSTOM_RASTERIZER_WHEEL_URL:-$CUSTOM_RASTERIZER_AUTO}"
-          VX="${VOXELIZE_WHEEL_URL:-$VOXELIZE_AUTO}"
-          TS="${TORCHSPARSE_WHEEL_URL:-$TORCHSPARSE_AUTO}"
-
-          echo "custom_rasterizer=$CR" >> "$GITHUB_OUTPUT"
-          echo "voxelize=$VX" >> "$GITHUB_OUTPUT"
-          echo "torchsparse=$TS" >> "$GITHUB_OUTPUT"
+          echo "custom_rasterizer=${CUSTOM_RASTERIZER_WHEEL_URL:-$CUSTOM_RASTERIZER_AUTO}" >> "$GITHUB_OUTPUT"
+          echo "voxelize=${VOXELIZE_WHEEL_URL:-$VOXELIZE_AUTO}" >> "$GITHUB_OUTPUT"
+          echo "torchsparse=${TORCHSPARSE_WHEEL_URL:-$TORCHSPARSE_AUTO}" >> "$GITHUB_OUTPUT"
 
           echo "── Resolved URLs ──"
-          echo "custom_rasterizer: ${CR:-<compile from source>}"
-          echo "voxelize: ${VX:-<compile from source>}"
-          echo "torchsparse: ${TS:-<compile from source>}"
+          echo "custom_rasterizer: ${CUSTOM_RASTERIZER_WHEEL_URL:-${CUSTOM_RASTERIZER_AUTO:-<compile from source>}}"
+          echo "voxelize: ${VOXELIZE_WHEEL_URL:-${VOXELIZE_AUTO:-<compile from source>}}"
+          echo "torchsparse: ${TORCHSPARSE_WHEEL_URL:-${TORCHSPARSE_AUTO:-<compile from source>}}"
 
       - name: Extract metadata
         id: meta
@@ -79,18 +81,13 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # Branch/PR tags
             type=ref,event=branch
             type=ref,event=pr
-            # Semver tags (when you push a git tag like v1.0.0)
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            # Auto-generated date tag on every main push (e.g. 20260321-1430)
             type=raw,value={{date 'YYYYMMDD-HHmm'}},enable={{is_default_branch}}
-            # Short commit SHA (e.g. abc1234)
             type=sha,prefix=,enable={{is_default_branch}}
-            # Latest
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Set up Docker Buildx
@@ -106,6 +103,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
+            BASE_IMAGE=${{ vars.BASE_IMAGE || 'ghcr.io/urbanstepa/comfyui-su-base:latest' }}
             TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0
             CUSTOM_RASTERIZER_WHEEL_URL=${{ steps.wheels.outputs.custom_rasterizer }}
             VOXELIZE_WHEEL_URL=${{ steps.wheels.outputs.voxelize }}

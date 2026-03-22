@@ -1,77 +1,28 @@
-# ComfyUI 3D Docker Image
-# Includes: comfyui-hunyuan3dwrapper, ComfyUI-Direct3D-S2
-# Base: CUDA 13.0 + Python 3.12 + torch 2.10.0+cu130
-# Sources: github.com/urbanstepa
+# ──────────────────────────────────────────────────────────────────────────────
+# ComfyUI-SU Final Image
+#
+# Built on top of the base image (CUDA + Python + PyTorch).
+# This layer installs:
+#   - ComfyUI and all custom nodes (git clone + pip install requirements)
+#   - Pre-built CUDA wheels (custom_rasterizer, voxelize, torchsparse, flash-attn)
+#   - Config and entrypoint
+# ──────────────────────────────────────────────────────────────────────────────
 
-FROM nvidia/cuda:13.0.0-devel-ubuntu22.04
-
-# Prevent interactive prompts during build
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# CUDA environment
-ENV CUDA_HOME=/usr/local/cuda
-ENV PATH=${CUDA_HOME}/bin:${PATH}
-ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
-
-# ComfyUI paths
-ENV COMFYUI_PATH=/opt/ComfyUI
-ENV CUSTOM_NODES_PATH=${COMFYUI_PATH}/custom_nodes
-ENV MODELS_PATH=/models
-
-# GPU architecture — override at build time if needed: --build-arg TORCH_CUDA_ARCH_LIST="8.9"
-ARG TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;8.9;9.0"
-ENV TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST}
+ARG BASE_IMAGE=ghcr.io/urbanstepa/comfyui-su-base:latest
+FROM ${BASE_IMAGE}
 
 # ─────────────────────────────────────────────
-# Pre-built CUDA wheel URLs (from fork repo GitHub Releases)
-# Set these to skip slow CUDA compilation during docker build.
-# Leave empty to compile from source (slower but always works).
-# Example: --build-arg CUSTOM_RASTERIZER_WHEEL_URL=https://github.com/urbanstepa/ComfyUI-Hunyuan3DWrapper/releases/download/v1.0.0/custom_rasterizer_kernel-0.0.0-cp312-cp312-linux_x86_64.whl
+# Pre-built CUDA wheel URLs (from cuda-wheels release)
+# Leave empty to compile from source (slower fallback).
 # ─────────────────────────────────────────────
 ARG CUSTOM_RASTERIZER_WHEEL_URL=""
 ARG VOXELIZE_WHEEL_URL=""
 ARG TORCHSPARSE_WHEEL_URL=""
 ARG FLASH_ATTN_WHEEL_URL="https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.0/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl"
 
-# ─────────────────────────────────────────────
-# System dependencies + Python 3.12 via deadsnakes PPA
-# ─────────────────────────────────────────────
-RUN apt-get update && apt-get install -y \
-    software-properties-common \
-    curl \
-    && add-apt-repository ppa:deadsnakes/ppa -y \
-    && apt-get update && apt-get install -y \
-    python3.12 \
-    python3.12-dev \
-    python3.12-venv \
-    git \
-    git-lfs \
-    wget \
-    build-essential \
-    ninja-build \
-    libsparsehash-dev \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    libopengl0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set python3.12 as default, then install pip
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 && \
-    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12 && \
-    python3.12 -m pip install --upgrade pip setuptools wheel
-
-# ─────────────────────────────────────────────
-# PyTorch 2.10.0 + CUDA 13.0
-# ─────────────────────────────────────────────
-RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
-    --index-url https://download.pytorch.org/whl/cu130
+# GPU architecture (only needed if compiling from source)
+ARG TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;8.9;9.0"
+ENV TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST}
 
 # ─────────────────────────────────────────────
 # ComfyUI — urbanstepa fork
@@ -95,8 +46,9 @@ RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3DWrapper.git \
     ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
     cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
     pip install -r requirements.txt
+
 # ─────────────────────────────────────────────
-# custom_rasterizer — use pre-built wheel if URL provided, else compile
+# custom_rasterizer — wheel or compile from source
 # ─────────────────────────────────────────────
 RUN if [ -n "${CUSTOM_RASTERIZER_WHEEL_URL}" ]; then \
       echo "Installing custom_rasterizer from pre-built wheel" && \
@@ -104,9 +56,8 @@ RUN if [ -n "${CUSTOM_RASTERIZER_WHEEL_URL}" ]; then \
     else \
       echo "Compiling custom_rasterizer from source (slow)" && \
       cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper/hy3dgen/texgen/custom_rasterizer && \
-      MAX_JOBS=1 python setup.py install; \
-    fi && \
-    touch /opt/.custom_rasterizer_built
+      FORCE_CUDA=1 MAX_JOBS=1 python setup.py install; \
+    fi
 
 # ─────────────────────────────────────────────
 # ComfyUI-Direct3D-S2 — urbanstepa fork
@@ -117,7 +68,7 @@ RUN git clone https://github.com/urbanstepa/ComfyUI-Direct3D-S2.git \
     pip install -r requirements.txt
 
 # ─────────────────────────────────────────────
-# voxelize — use pre-built wheel if URL provided, else compile
+# voxelize — wheel or compile from source
 # ─────────────────────────────────────────────
 RUN if [ -n "${VOXELIZE_WHEEL_URL}" ]; then \
       echo "Installing voxelize from pre-built wheel" && \
@@ -125,12 +76,11 @@ RUN if [ -n "${VOXELIZE_WHEEL_URL}" ]; then \
     else \
       echo "Compiling voxelize from source (slow)" && \
       cd ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2/voxelize && \
-      MAX_JOBS=1 python setup.py install; \
-    fi && \
-    touch /opt/.voxelize_built
+      FORCE_CUDA=1 MAX_JOBS=1 python setup.py install; \
+    fi
 
 # ─────────────────────────────────────────────
-# torchsparse — use pre-built wheel if URL provided, else compile
+# torchsparse — wheel or compile from source
 # ─────────────────────────────────────────────
 RUN pip install rootpath backports.cached-property && \
     if [ -n "${TORCHSPARSE_WHEEL_URL}" ]; then \
@@ -140,23 +90,22 @@ RUN pip install rootpath backports.cached-property && \
       echo "Compiling torchsparse from source (slow)" && \
       git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse && \
       cd /tmp/torchsparse && \
-      MAX_JOBS=1 python setup.py install && \
+      FORCE_CUDA=1 MAX_JOBS=1 python setup.py install && \
       rm -rf /tmp/torchsparse; \
-    fi && \
-    touch /opt/.torchsparse_built
+    fi
 
 # ─────────────────────────────────────────────
-# Re-pin PyTorch cu130 BEFORE flash-attn build
-# (earlier requirements.txt may have downgraded to cu128)
+# Re-pin PyTorch cu130 (requirements.txt may have downgraded to cu128)
 # ─────────────────────────────────────────────
 RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
     --index-url https://download.pytorch.org/whl/cu130
 
 # ─────────────────────────────────────────────
-# flash-attn — pre-built wheel (compiling from source OOM-kills GHA runners)
+# flash-attn — pre-built wheel
 # ─────────────────────────────────────────────
-RUN pip install "${FLASH_ATTN_WHEEL_URL}" && \
-    touch /opt/.flash_attn_built
+RUN if [ -n "${FLASH_ATTN_WHEEL_URL}" ]; then \
+      pip install "${FLASH_ATTN_WHEEL_URL}"; \
+    fi
 
 # ─────────────────────────────────────────────
 # ComfyUI Essentials — image resize, remove bg, mask preview, etc.
@@ -165,21 +114,18 @@ RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
     ${CUSTOM_NODES_PATH}/ComfyUI_essentials && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI_essentials && \
     pip install -r requirements.txt && \
-    pip install "rembg[gpu]" && \
-    touch /opt/.comfyui_essentials_built
+    pip install "rembg[gpu]"
 
 # ─────────────────────────────────────────────
 # ComfyUI-Hunyuan3d-2-1 — Hunyuan3D v2.1 mesh export, decimation, transparency
 # ─────────────────────────────────────────────
-RUN rm -rf /usr/lib/python3/dist-packages/blinker /usr/lib/python3/dist-packages/blinker-1.4.egg-info && \
-    git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3d-2-1.git \
+RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3d-2-1.git \
     ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
-    pip install -r requirements.txt && \
-    touch /opt/.comfyui_hunyuan3d21_built
+    pip install -r requirements.txt
 
 # ─────────────────────────────────────────────
-# Re-pin PyTorch cu130 — some requirements.txt may override with cu128
+# Final PyTorch re-pin (safety net after all requirements.txt)
 # ─────────────────────────────────────────────
 RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
     --index-url https://download.pytorch.org/whl/cu130
@@ -199,16 +145,6 @@ RUN ln -sf ${MODELS_PATH} ${COMFYUI_PATH}/models
 # Extra model paths config
 # ─────────────────────────────────────────────
 COPY config/extra_model_paths.yaml ${COMFYUI_PATH}/extra_model_paths.yaml
-
-# ─────────────────────────────────────────────
-# Build manifest — record what was compiled
-# ─────────────────────────────────────────────
-RUN echo "custom_rasterizer | $([ -n '${CUSTOM_RASTERIZER_WHEEL_URL}' ] && echo 'wheel' || echo 'source')" >> /opt/.prebuilt-manifest && \
-    echo "voxelize | $([ -n '${VOXELIZE_WHEEL_URL}' ] && echo 'wheel' || echo 'source')" >> /opt/.prebuilt-manifest && \
-    echo "torchsparse | $([ -n '${TORCHSPARSE_WHEEL_URL}' ] && echo 'wheel' || echo 'source')" >> /opt/.prebuilt-manifest && \
-    echo "flash_attn | wheel" >> /opt/.prebuilt-manifest && \
-    echo "comfyui_essentials | pip" >> /opt/.prebuilt-manifest && \
-    echo "comfyui_hunyuan3d21 | pip" >> /opt/.prebuilt-manifest
 
 # ─────────────────────────────────────────────
 # Entrypoint
