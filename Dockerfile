@@ -118,6 +118,13 @@ RUN pip install rootpath backports.cached-property && \
     rm -rf /tmp/torchsparse
 
 # ─────────────────────────────────────────────
+# Re-pin PyTorch cu130 BEFORE flash-attn build
+# (earlier requirements.txt may have downgraded to cu128)
+# ─────────────────────────────────────────────
+RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
+    --index-url https://download.pytorch.org/whl/cu130
+
+# ─────────────────────────────────────────────
 # flash-attn — required by ComfyUI-Direct3D-S2 attention module
 # ─────────────────────────────────────────────
 RUN MAX_JOBS=1 pip install flash-attn --no-build-isolation && \
@@ -170,6 +177,7 @@ COPY config/extra_model_paths.yaml ${COMFYUI_PATH}/extra_model_paths.yaml
 RUN echo "custom_rasterizer | docker build" >> /opt/.prebuilt-manifest && \
     echo "voxelize | docker build" >> /opt/.prebuilt-manifest && \
     echo "torchsparse | docker build" >> /opt/.prebuilt-manifest && \
+    echo "flash_attn | docker build" >> /opt/.prebuilt-manifest && \
     echo "comfyui_essentials | docker build" >> /opt/.prebuilt-manifest && \
     echo "comfyui_hunyuan3d21 | docker build" >> /opt/.prebuilt-manifest
 
