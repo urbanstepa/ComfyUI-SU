@@ -144,7 +144,8 @@ RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
 # ─────────────────────────────────────────────
 # ComfyUI-Hunyuan3d-2-1 — Hunyuan3D v2.1 mesh export, decimation, transparency
 # ─────────────────────────────────────────────
-RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3d-2-1.git \
+RUN rm -rf /usr/lib/python3/dist-packages/blinker /usr/lib/python3/dist-packages/blinker-1.4.egg-info && \
+    git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3d-2-1.git \
     ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
     pip install -r requirements.txt && \
