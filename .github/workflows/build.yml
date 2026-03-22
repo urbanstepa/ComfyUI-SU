@@ -30,6 +30,50 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # ── Resolve wheel URLs ───────────────────────────────────────────
+      # Priority: repo variable (manual override) > latest "wheels-*" release > empty (compile from source)
+      - name: Resolve CUDA wheel URLs
+        id: wheels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Looking for latest wheels-* release..."
+
+          # Find the latest release tagged wheels-*
+          RELEASE_TAG=$(gh release list --repo "${{ github.repository }}" --limit 20 \
+            | grep -oP 'wheels-\S+' | head -1 || true)
+
+          if [ -n "$RELEASE_TAG" ]; then
+            echo "Found wheel release: $RELEASE_TAG"
+
+            # Get all .whl asset download URLs
+            ASSETS=$(gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" --json assets -q '.assets[].url')
+
+            # Match each wheel by name pattern
+            CUSTOM_RASTERIZER_URL=$(echo "$ASSETS" | grep -i 'custom_rasterizer' || true)
+            VOXELIZE_URL=$(echo "$ASSETS" | grep -iE 'udf_ext|voxelize' || true)
+            TORCHSPARSE_URL=$(echo "$ASSETS" | grep -i 'torchsparse' || true)
+          else
+            echo "No wheels-* release found"
+            CUSTOM_RASTERIZER_URL=""
+            VOXELIZE_URL=""
+            TORCHSPARSE_URL=""
+          fi
+
+          # Repo variables override auto-detected URLs
+          echo "custom_rasterizer=${CUSTOM_RASTERIZER_WHEEL_URL:-$CUSTOM_RASTERIZER_URL}" >> "$GITHUB_OUTPUT"
+          echo "voxelize=${VOXELIZE_WHEEL_URL:-$VOXELIZE_URL}" >> "$GITHUB_OUTPUT"
+          echo "torchsparse=${TORCHSPARSE_WHEEL_URL:-$TORCHSPARSE_URL}" >> "$GITHUB_OUTPUT"
+
+          echo "── Resolved URLs ──"
+          echo "custom_rasterizer: ${CUSTOM_RASTERIZER_WHEEL_URL:-$CUSTOM_RASTERIZER_URL:-<compile from source>}"
+          echo "voxelize: ${VOXELIZE_WHEEL_URL:-$VOXELIZE_URL:-<compile from source>}"
+          echo "torchsparse: ${TORCHSPARSE_WHEEL_URL:-$TORCHSPARSE_URL:-<compile from source>}"
+        env:
+          CUSTOM_RASTERIZER_WHEEL_URL: ${{ vars.CUSTOM_RASTERIZER_WHEEL_URL }}
+          VOXELIZE_WHEEL_URL: ${{ vars.VOXELIZE_WHEEL_URL }}
+          TORCHSPARSE_WHEEL_URL: ${{ vars.TORCHSPARSE_WHEEL_URL }}
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -64,7 +108,7 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0
-            CUSTOM_RASTERIZER_WHEEL_URL=${{ vars.CUSTOM_RASTERIZER_WHEEL_URL }}
-            VOXELIZE_WHEEL_URL=${{ vars.VOXELIZE_WHEEL_URL }}
-            TORCHSPARSE_WHEEL_URL=${{ vars.TORCHSPARSE_WHEEL_URL }}
+            CUSTOM_RASTERIZER_WHEEL_URL=${{ steps.wheels.outputs.custom_rasterizer }}
+            VOXELIZE_WHEEL_URL=${{ steps.wheels.outputs.voxelize }}
+            TORCHSPARSE_WHEEL_URL=${{ steps.wheels.outputs.torchsparse }}
             FLASH_ATTN_WHEEL_URL=${{ vars.FLASH_ATTN_WHEEL_URL || 'https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.0/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl' }}
