@@ -1,15 +1,11 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # ComfyUI-SU Base Image
 #
-# Contains everything that's slow to install and rarely changes:
-#   - CUDA 13.0 + Python 3.12 + PyTorch 2.10.0+cu130
-#   - All pip dependencies from every custom node's requirements.txt
-#   - Pre-built CUDA wheels (custom_rasterizer, voxelize, torchsparse, flash-attn)
-#   - rembg[gpu], rootpath, backports.cached-property, etc.
+# The foundation layer that rarely changes:
+#   - CUDA 13.0 + Python 3.12 + system libraries
+#   - PyTorch 2.10.0+cu130
 #
-# The main Dockerfile (FROM this image) only needs to clone repos and copy config.
-#
-# Rebuild this when: PyTorch version changes, new dependency added, wheels updated.
+# Rebuild only when: CUDA version, Python version, or PyTorch version changes.
 # ──────────────────────────────────────────────────────────────────────────────
 
 FROM nvidia/cuda:13.0.0-devel-ubuntu22.04
@@ -23,18 +19,10 @@ ENV CUDA_HOME=/usr/local/cuda
 ENV PATH=${CUDA_HOME}/bin:${PATH}
 ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 
-# Paths (must match the main Dockerfile)
+# Paths (must match the final Dockerfile)
 ENV COMFYUI_PATH=/opt/ComfyUI
 ENV CUSTOM_NODES_PATH=${COMFYUI_PATH}/custom_nodes
 ENV MODELS_PATH=/models
-
-# ─────────────────────────────────────────────
-# Pre-built CUDA wheel URLs
-# ─────────────────────────────────────────────
-ARG CUSTOM_RASTERIZER_WHEEL_URL=""
-ARG VOXELIZE_WHEEL_URL=""
-ARG TORCHSPARSE_WHEEL_URL=""
-ARG FLASH_ATTN_WHEEL_URL="https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.0/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl"
 
 # ─────────────────────────────────────────────
 # System dependencies + Python 3.12
@@ -73,78 +61,8 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
 RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
     --index-url https://download.pytorch.org/whl/cu130
 
-# ─────────────────────────────────────────────
-# Clone repos temporarily to install their requirements.txt
-# Then remove the source code (the main Dockerfile re-clones them)
-# ─────────────────────────────────────────────
-RUN mkdir -p ${CUSTOM_NODES_PATH}
+# Remove distutils blinker to prevent conflicts with pip-managed packages
+RUN rm -rf /usr/lib/python3/dist-packages/blinker /usr/lib/python3/dist-packages/blinker-1.4.egg-info
 
-# ComfyUI core
-RUN git clone --depth 1 https://github.com/urbanstepa/ComfyUI.git /tmp/ComfyUI && \
-    cd /tmp/ComfyUI && pip install -r requirements.txt && \
-    rm -rf /tmp/ComfyUI
-
-# ComfyUI-Manager
-RUN git clone --depth 1 https://github.com/urbanstepa/ComfyUI-Manager.git /tmp/ComfyUI-Manager && \
-    cd /tmp/ComfyUI-Manager && pip install -r requirements.txt && \
-    rm -rf /tmp/ComfyUI-Manager
-
-# ComfyUI-Hunyuan3DWrapper
-RUN git clone --depth 1 https://github.com/urbanstepa/ComfyUI-Hunyuan3DWrapper.git /tmp/ComfyUI-Hunyuan3DWrapper && \
-    cd /tmp/ComfyUI-Hunyuan3DWrapper && pip install -r requirements.txt && \
-    rm -rf /tmp/ComfyUI-Hunyuan3DWrapper
-
-# ComfyUI-Direct3D-S2
-RUN git clone --depth 1 https://github.com/urbanstepa/ComfyUI-Direct3D-S2.git /tmp/ComfyUI-Direct3D-S2 && \
-    cd /tmp/ComfyUI-Direct3D-S2 && pip install -r requirements.txt && \
-    rm -rf /tmp/ComfyUI-Direct3D-S2
-
-# ComfyUI_essentials
-RUN git clone --depth 1 https://github.com/urbanstepa/ComfyUI_essentials.git /tmp/ComfyUI_essentials && \
-    cd /tmp/ComfyUI_essentials && pip install -r requirements.txt && \
-    pip install "rembg[gpu]" && \
-    rm -rf /tmp/ComfyUI_essentials
-
-# ComfyUI-Hunyuan3d-2-1
-RUN rm -rf /usr/lib/python3/dist-packages/blinker /usr/lib/python3/dist-packages/blinker-1.4.egg-info && \
-    git clone --depth 1 https://github.com/urbanstepa/ComfyUI-Hunyuan3d-2-1.git /tmp/ComfyUI-Hunyuan3d-2-1 && \
-    cd /tmp/ComfyUI-Hunyuan3d-2-1 && pip install -r requirements.txt && \
-    rm -rf /tmp/ComfyUI-Hunyuan3d-2-1
-
-# torchsparse runtime deps
-RUN pip install rootpath backports.cached-property
-
-# ─────────────────────────────────────────────
-# Re-pin PyTorch cu130 (requirements.txt may have downgraded to cu128)
-# ─────────────────────────────────────────────
-RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
-    --index-url https://download.pytorch.org/whl/cu130
-
-# ─────────────────────────────────────────────
-# Install pre-built CUDA wheels
-# ─────────────────────────────────────────────
-RUN if [ -n "${CUSTOM_RASTERIZER_WHEEL_URL}" ]; then \
-      pip install "${CUSTOM_RASTERIZER_WHEEL_URL}"; \
-    fi
-RUN if [ -n "${VOXELIZE_WHEEL_URL}" ]; then \
-      pip install "${VOXELIZE_WHEEL_URL}"; \
-    fi
-RUN if [ -n "${TORCHSPARSE_WHEEL_URL}" ]; then \
-      pip install "${TORCHSPARSE_WHEEL_URL}"; \
-    fi
-RUN if [ -n "${FLASH_ATTN_WHEEL_URL}" ]; then \
-      pip install "${FLASH_ATTN_WHEEL_URL}"; \
-    fi
-
-# ─────────────────────────────────────────────
-# Final PyTorch re-pin (safety net)
-# ─────────────────────────────────────────────
-RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
-    --index-url https://download.pytorch.org/whl/cu130
-
-# ─────────────────────────────────────────────
-# Base image manifest
-# ─────────────────────────────────────────────
-RUN python -c "import torch; print(f'PyTorch {torch.__version__} CUDA {torch.version.cuda}')" && \
-    python -c "import flash_attn; print(f'flash-attn {flash_attn.__version__}')" || true && \
-    echo "Base image ready"
+# Verify
+RUN python -c "import torch; print(f'PyTorch {torch.__version__} CUDA {torch.version.cuda}')"

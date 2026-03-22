@@ -1,11 +1,10 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # Build the ComfyUI-SU base image
 #
-# Contains: CUDA + Python + PyTorch + all pip deps + CUDA wheels
+# Contains only: CUDA 13.0 + Python 3.12 + PyTorch 2.10.0+cu130 + system libs
 # Pushed to: ghcr.io/urbanstepa/comfyui-su-base
 #
-# Rebuild when: PyTorch changes, new dependency added, wheels updated.
-# The main image (build.yml) uses this as its FROM layer.
+# Rebuild only when: CUDA, Python, or PyTorch version changes.
 # ──────────────────────────────────────────────────────────────────────────────
 name: "Build Base Image"
 
@@ -14,7 +13,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}-base    # comfyui-su-base
+  IMAGE_NAME: ${{ github.repository }}-base
 
 jobs:
   build:
@@ -33,42 +32,6 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # ── Resolve wheel URLs from cuda-wheels release ────────────────
-      - name: Resolve CUDA wheel URLs
-        id: wheels
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CUSTOM_RASTERIZER_WHEEL_URL: ${{ vars.CUSTOM_RASTERIZER_WHEEL_URL }}
-          VOXELIZE_WHEEL_URL: ${{ vars.VOXELIZE_WHEEL_URL }}
-          TORCHSPARSE_WHEEL_URL: ${{ vars.TORCHSPARSE_WHEEL_URL }}
-        run: |
-          REPO="${{ github.repository }}"
-          TAG="cuda-wheels"
-
-          if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
-            echo "Found $TAG release"
-            ASSETS=$(gh release view "$TAG" --repo "$REPO" --json assets \
-              -q '.assets[] | .name + " " + .url')
-
-            CUSTOM_RASTERIZER_AUTO=$(echo "$ASSETS" | grep -i 'custom_rasterizer' | awk '{print $2}' || true)
-            VOXELIZE_AUTO=$(echo "$ASSETS" | grep -iE 'udf_ext|voxelize' | awk '{print $2}' || true)
-            TORCHSPARSE_AUTO=$(echo "$ASSETS" | grep -i 'torchsparse' | awk '{print $2}' || true)
-          else
-            echo "No $TAG release found"
-            CUSTOM_RASTERIZER_AUTO=""
-            VOXELIZE_AUTO=""
-            TORCHSPARSE_AUTO=""
-          fi
-
-          echo "custom_rasterizer=${CUSTOM_RASTERIZER_WHEEL_URL:-$CUSTOM_RASTERIZER_AUTO}" >> "$GITHUB_OUTPUT"
-          echo "voxelize=${VOXELIZE_WHEEL_URL:-$VOXELIZE_AUTO}" >> "$GITHUB_OUTPUT"
-          echo "torchsparse=${TORCHSPARSE_WHEEL_URL:-$TORCHSPARSE_AUTO}" >> "$GITHUB_OUTPUT"
-
-          echo "── Resolved URLs ──"
-          echo "custom_rasterizer: ${CUSTOM_RASTERIZER_WHEEL_URL:-${CUSTOM_RASTERIZER_AUTO:-<not available>}}"
-          echo "voxelize: ${VOXELIZE_WHEEL_URL:-${VOXELIZE_AUTO:-<not available>}}"
-          echo "torchsparse: ${TORCHSPARSE_WHEEL_URL:-${TORCHSPARSE_AUTO:-<not available>}}"
 
       - name: Extract metadata
         id: meta
@@ -93,8 +56,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=base
           cache-to: type=gha,scope=base,mode=max
-          build-args: |
-            CUSTOM_RASTERIZER_WHEEL_URL=${{ steps.wheels.outputs.custom_rasterizer }}
-            VOXELIZE_WHEEL_URL=${{ steps.wheels.outputs.voxelize }}
-            TORCHSPARSE_WHEEL_URL=${{ steps.wheels.outputs.torchsparse }}
-            FLASH_ATTN_WHEEL_URL=${{ vars.FLASH_ATTN_WHEEL_URL || 'https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.0/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl' }}
