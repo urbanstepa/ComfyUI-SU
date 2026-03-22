@@ -1,5 +1,5 @@
 # Build torchsparse CUDA wheel
-# Trigger manually from Actions tab, or called by wheel-all.yml
+# Trigger manually from Actions tab, or called by build-wheels.yml
 name: "Wheel: torchsparse"
 
 on:
@@ -10,12 +10,15 @@ env:
   TORCH_CUDA_ARCH_LIST: "7.5;8.0;8.6;8.9;9.0"
   FORCE_CUDA: "1"
   MAX_JOBS: "2"
+  RELEASE_TAG: cuda-wheels
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
       image: nvidia/cuda:13.0.0-devel-ubuntu22.04
+    permissions:
+      contents: write
 
     steps:
       - name: Install Python 3.12 + system deps
@@ -58,3 +61,39 @@ jobs:
           path: /build/dist/*.whl
           if-no-files-found: error
           retention-days: 90
+
+      # Upload to the persistent cuda-wheels release (creates it if missing)
+      - name: Install gh CLI
+        run: |
+          apt-get install -y --no-install-recommends curl
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+            | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+            | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          apt-get update -qq && apt-get install -y gh
+
+      - name: Upload wheel to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd /build/dist
+          REPO="${{ github.repository }}"
+          TAG="${{ env.RELEASE_TAG }}"
+          WHEEL=$(ls *.whl | head -1)
+
+          # Create release if it doesn't exist
+          gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1 || \
+            gh release create "$TAG" --repo "$REPO" \
+              --title "CUDA Wheels" \
+              --notes "Pre-built CUDA extension wheels (cu130 / Python 3.12 / PyTorch 2.10)" \
+              --prerelease
+
+          # Delete old version of this wheel if it exists, then upload new one
+          EXISTING=$(gh release view "$TAG" --repo "$REPO" --json assets -q '.assets[].name' | grep -i 'torchsparse' || true)
+          for OLD in $EXISTING; do
+            echo "Replacing $OLD"
+            gh release delete-asset "$TAG" "$OLD" --repo "$REPO" --yes
+          done
+
+          gh release upload "$TAG" "$WHEEL" --repo "$REPO" --clobber
+          echo "✅ Uploaded $WHEEL to release $TAG"

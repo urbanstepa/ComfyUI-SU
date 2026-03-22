@@ -31,48 +31,47 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # ── Resolve wheel URLs ───────────────────────────────────────────
-      # Priority: repo variable (manual override) > latest "wheels-*" release > empty (compile from source)
+      # Priority: repo variable (manual override) > cuda-wheels release > empty (compile from source)
       - name: Resolve CUDA wheel URLs
         id: wheels
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Looking for latest wheels-* release..."
-
-          # Find the latest release tagged wheels-*
-          RELEASE_TAG=$(gh release list --repo "${{ github.repository }}" --limit 20 \
-            | grep -oP 'wheels-\S+' | head -1 || true)
-
-          if [ -n "$RELEASE_TAG" ]; then
-            echo "Found wheel release: $RELEASE_TAG"
-
-            # Get all .whl asset download URLs
-            ASSETS=$(gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" --json assets -q '.assets[].url')
-
-            # Match each wheel by name pattern
-            CUSTOM_RASTERIZER_URL=$(echo "$ASSETS" | grep -i 'custom_rasterizer' || true)
-            VOXELIZE_URL=$(echo "$ASSETS" | grep -iE 'udf_ext|voxelize' || true)
-            TORCHSPARSE_URL=$(echo "$ASSETS" | grep -i 'torchsparse' || true)
-          else
-            echo "No wheels-* release found"
-            CUSTOM_RASTERIZER_URL=""
-            VOXELIZE_URL=""
-            TORCHSPARSE_URL=""
-          fi
-
-          # Repo variables override auto-detected URLs
-          echo "custom_rasterizer=${CUSTOM_RASTERIZER_WHEEL_URL:-$CUSTOM_RASTERIZER_URL}" >> "$GITHUB_OUTPUT"
-          echo "voxelize=${VOXELIZE_WHEEL_URL:-$VOXELIZE_URL}" >> "$GITHUB_OUTPUT"
-          echo "torchsparse=${TORCHSPARSE_WHEEL_URL:-$TORCHSPARSE_URL}" >> "$GITHUB_OUTPUT"
-
-          echo "── Resolved URLs ──"
-          echo "custom_rasterizer: ${CUSTOM_RASTERIZER_WHEEL_URL:-$CUSTOM_RASTERIZER_URL:-<compile from source>}"
-          echo "voxelize: ${VOXELIZE_WHEEL_URL:-$VOXELIZE_URL:-<compile from source>}"
-          echo "torchsparse: ${TORCHSPARSE_WHEEL_URL:-$TORCHSPARSE_URL:-<compile from source>}"
-        env:
           CUSTOM_RASTERIZER_WHEEL_URL: ${{ vars.CUSTOM_RASTERIZER_WHEEL_URL }}
           VOXELIZE_WHEEL_URL: ${{ vars.VOXELIZE_WHEEL_URL }}
           TORCHSPARSE_WHEEL_URL: ${{ vars.TORCHSPARSE_WHEEL_URL }}
+        run: |
+          REPO="${{ github.repository }}"
+          TAG="cuda-wheels"
+
+          # Try to get asset URLs from the persistent cuda-wheels release
+          if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+            echo "Found $TAG release"
+            ASSETS=$(gh release view "$TAG" --repo "$REPO" --json assets \
+              -q '.assets[] | .name + " " + .url')
+
+            CUSTOM_RASTERIZER_AUTO=$(echo "$ASSETS" | grep -i 'custom_rasterizer' | awk '{print $2}' || true)
+            VOXELIZE_AUTO=$(echo "$ASSETS" | grep -iE 'udf_ext|voxelize' | awk '{print $2}' || true)
+            TORCHSPARSE_AUTO=$(echo "$ASSETS" | grep -i 'torchsparse' | awk '{print $2}' || true)
+          else
+            echo "No $TAG release found — will compile from source"
+            CUSTOM_RASTERIZER_AUTO=""
+            VOXELIZE_AUTO=""
+            TORCHSPARSE_AUTO=""
+          fi
+
+          # Repo variables take priority over auto-detected
+          CR="${CUSTOM_RASTERIZER_WHEEL_URL:-$CUSTOM_RASTERIZER_AUTO}"
+          VX="${VOXELIZE_WHEEL_URL:-$VOXELIZE_AUTO}"
+          TS="${TORCHSPARSE_WHEEL_URL:-$TORCHSPARSE_AUTO}"
+
+          echo "custom_rasterizer=$CR" >> "$GITHUB_OUTPUT"
+          echo "voxelize=$VX" >> "$GITHUB_OUTPUT"
+          echo "torchsparse=$TS" >> "$GITHUB_OUTPUT"
+
+          echo "── Resolved URLs ──"
+          echo "custom_rasterizer: ${CR:-<compile from source>}"
+          echo "voxelize: ${VX:-<compile from source>}"
+          echo "torchsparse: ${TS:-<compile from source>}"
 
       - name: Extract metadata
         id: meta
