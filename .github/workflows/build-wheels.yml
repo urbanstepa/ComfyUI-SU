@@ -1,199 +1,39 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Build pre-compiled CUDA extension wheels
+# Build ALL CUDA wheels and create a GitHub Release
 #
-# Builds all three CUDA extensions as Python wheels inside an NVIDIA container:
-#   1. custom_rasterizer  (from ComfyUI-Hunyuan3DWrapper)
-#   2. voxelize / udf_ext (from ComfyUI-Direct3D-S2)
-#   3. torchsparse        (from urbanstepa/torchsparse)
+# Calls each individual wheel workflow in parallel, then collects
+# all artifacts into a single release.
 #
-# These wheels are then used by the main Dockerfile via WHEEL_URL build args,
-# avoiding slow CUDA compilation during every Docker image build.
+# To build just one wheel, run its workflow directly from the Actions tab:
+#   - "Wheel: custom_rasterizer"
+#   - "Wheel: voxelize"
+#   - "Wheel: torchsparse"
 #
-# Trigger: manual only (workflow_dispatch) — wheels only need rebuilding when
-# the upstream extension code changes, not on every push.
-#
-# On completion, wheels are uploaded as GitHub Release assets (tagged as
-# "wheels-YYYYMMDD" or a custom tag you provide).
+# To add a new wheel: create a new wheel-<name>.yml (copy any existing one),
+# then add it to the jobs/release.needs list below.
 # ──────────────────────────────────────────────────────────────────────────────
-name: Build CUDA Wheels
+name: "Build All Wheels + Release"
 
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag for the wheels (e.g. wheels-20260322)'
+        description: 'Release tag (e.g. wheels-20260322). Leave empty for auto.'
         required: false
         default: ''
 
-env:
-  TORCH_CUDA_ARCH_LIST: "7.5;8.0;8.6;8.9;9.0"
-  FORCE_CUDA: "1"
-  MAX_JOBS: "2"
-
 jobs:
-  # ================================================================
-  # Shared setup is repeated per job because GHA containers can't be
-  # shared across jobs. Each job builds one wheel independently.
-  # ================================================================
-
+  # ── Call each wheel workflow in parallel ──────────────────────────────────
   custom-rasterizer:
-    name: "Build custom_rasterizer wheel"
-    runs-on: ubuntu-latest
-    container:
-      image: nvidia/cuda:13.0.0-devel-ubuntu22.04
-
-    steps:
-      - name: Install Python 3.12 + pip
-        run: |
-          apt-get update -qq
-          apt-get install -y --no-install-recommends \
-            software-properties-common gpg-agent git
-          add-apt-repository -y ppa:deadsnakes/ppa
-          apt-get update -qq
-          apt-get install -y --no-install-recommends \
-            python3.12 python3.12-dev python3.12-venv
-          update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
-          update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
-          python -m ensurepip --upgrade
-          python -m pip install --upgrade pip setuptools wheel ninja
-
-      - name: Install PyTorch 2.10.0+cu130
-        run: |
-          pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
-            --index-url https://download.pytorch.org/whl/cu130
-
-      - name: Clone ComfyUI-Hunyuan3DWrapper
-        run: |
-          git clone --depth 1 https://github.com/urbanstepa/ComfyUI-Hunyuan3DWrapper.git /build/repo
-
-      - name: Build wheel
-        working-directory: /build/repo/hy3dgen/texgen/custom_rasterizer
-        run: |
-          if pip wheel . --no-deps --wheel-dir /build/dist/ 2>&1; then
-            echo "pip wheel succeeded"
-          else
-            echo "Falling back to setup.py bdist_wheel"
-            python setup.py bdist_wheel --dist-dir /build/dist/
-          fi
-          echo "── Built wheel ──"
-          ls -lh /build/dist/*.whl
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: custom-rasterizer-wheel
-          path: /build/dist/*.whl
-          if-no-files-found: error
-          retention-days: 90
+    uses: ./.github/workflows/wheel-custom-rasterizer.yml
 
   voxelize:
-    name: "Build voxelize wheel"
-    runs-on: ubuntu-latest
-    container:
-      image: nvidia/cuda:13.0.0-devel-ubuntu22.04
-
-    steps:
-      - name: Install Python 3.12 + pip
-        run: |
-          apt-get update -qq
-          apt-get install -y --no-install-recommends \
-            software-properties-common gpg-agent git
-          add-apt-repository -y ppa:deadsnakes/ppa
-          apt-get update -qq
-          apt-get install -y --no-install-recommends \
-            python3.12 python3.12-dev python3.12-venv
-          update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
-          update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
-          python -m ensurepip --upgrade
-          python -m pip install --upgrade pip setuptools wheel ninja
-
-      - name: Install PyTorch 2.10.0+cu130
-        run: |
-          pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
-            --index-url https://download.pytorch.org/whl/cu130
-
-      - name: Clone ComfyUI-Direct3D-S2
-        run: |
-          git clone --depth 1 https://github.com/urbanstepa/ComfyUI-Direct3D-S2.git /build/repo
-
-      - name: Build wheel
-        working-directory: /build/repo/voxelize
-        run: |
-          if pip wheel . --no-deps --wheel-dir /build/dist/ 2>&1; then
-            echo "pip wheel succeeded"
-          else
-            echo "Falling back to setup.py bdist_wheel"
-            python setup.py bdist_wheel --dist-dir /build/dist/
-          fi
-          echo "── Built wheel ──"
-          ls -lh /build/dist/*.whl
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: voxelize-wheel
-          path: /build/dist/*.whl
-          if-no-files-found: error
-          retention-days: 90
+    uses: ./.github/workflows/wheel-voxelize.yml
 
   torchsparse:
-    name: "Build torchsparse wheel"
-    runs-on: ubuntu-latest
-    container:
-      image: nvidia/cuda:13.0.0-devel-ubuntu22.04
+    uses: ./.github/workflows/wheel-torchsparse.yml
 
-    steps:
-      - name: Install Python 3.12 + system deps
-        run: |
-          apt-get update -qq
-          apt-get install -y --no-install-recommends \
-            software-properties-common gpg-agent git \
-            libsparsehash-dev build-essential ninja-build
-          add-apt-repository -y ppa:deadsnakes/ppa
-          apt-get update -qq
-          apt-get install -y --no-install-recommends \
-            python3.12 python3.12-dev python3.12-venv
-          update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
-          update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
-          python -m ensurepip --upgrade
-          python -m pip install --upgrade pip setuptools wheel ninja
-
-      - name: Install PyTorch 2.10.0+cu130
-        run: |
-          pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
-            --index-url https://download.pytorch.org/whl/cu130
-
-      - name: Install Python build deps
-        run: |
-          pip install rootpath "backports.cached-property" numpy tqdm typing-extensions
-
-      - name: Clone torchsparse
-        run: |
-          git clone --depth 1 https://github.com/urbanstepa/torchsparse.git /build/repo
-
-      - name: Build wheel
-        working-directory: /build/repo
-        run: |
-          if pip wheel . --no-deps --wheel-dir /build/dist/ 2>&1; then
-            echo "pip wheel succeeded"
-          else
-            echo "Falling back to setup.py bdist_wheel"
-            python setup.py bdist_wheel --dist-dir /build/dist/
-          fi
-          echo "── Built wheel ──"
-          ls -lh /build/dist/*.whl
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: torchsparse-wheel
-          path: /build/dist/*.whl
-          if-no-files-found: error
-          retention-days: 90
-
-  # ================================================================
-  # Release — collects all wheels and creates a GitHub Release
-  # ================================================================
+  # ── Collect all wheels into a GitHub Release ─────────────────────────────
   release:
     name: "Create wheel release"
     needs: [custom-rasterizer, voxelize, torchsparse]
@@ -234,16 +74,6 @@ jobs:
             - PyTorch 2.10.0+cu130
             - TORCH_CUDA_ARCH_LIST: `7.5;8.0;8.6;8.9;9.0`
 
-            **Usage in Dockerfile:**
-            ```
-            docker build \
-              --build-arg CUSTOM_RASTERIZER_WHEEL_URL=<url> \
-              --build-arg VOXELIZE_WHEEL_URL=<url> \
-              --build-arg TORCHSPARSE_WHEEL_URL=<url> \
-              .
-            ```
-
-            Or set as repository variables for CI:
-            `Settings → Secrets and Variables → Actions → Variables`
+            **Usage:** Set wheel URLs as repository variables, or pass as `--build-arg` to `docker build`.
           files: wheels/*.whl
           make_latest: false
