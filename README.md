@@ -1,4 +1,4 @@
-# ComfyUI 3D Docker
+# ComfyUI-SU Docker
 
 A Docker image for running ComfyUI with 3D generation support on Windows via Docker Desktop.
 
@@ -16,7 +16,47 @@ A Docker image for running ComfyUI with 3D generation support on Windows via Doc
 - PyTorch 2.10.0+cu130
 - Ubuntu 22.04
 
-**All CUDA extensions (custom_rasterizer, voxelize, torchsparse) are compiled at image build time** — containers start in seconds.
+**All CUDA extensions (custom_rasterizer, voxelize, torchsparse, flash-attn) are pre-built as wheels** — no compilation during Docker image build.
+
+---
+
+## Architecture
+
+The build pipeline is split into three layers for fast, modular builds:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. CUDA Wheels (manual trigger, per-extension)                 │
+│     "Wheel: custom_rasterizer"  ─┐                              │
+│     "Wheel: voxelize"            ├──▶  cuda-wheels release      │
+│     "Wheel: torchsparse"       ─┘     (persistent GitHub Release│
+│     flash-attn: external pre-built wheel                        │
+├─────────────────────────────────────────────────────────────────┤
+│  2. Base Image (manual trigger, ~15 min)                        │
+│     Dockerfile.base                                             │
+│     - CUDA 13.0 + Python 3.12 + PyTorch 2.10.0+cu130           │
+│     - ComfyUI core (cloned + pip deps)                          │
+│     ──▶  ghcr.io/urbanstepa/comfyui-su-base:latest             │
+├─────────────────────────────────────────────────────────────────┤
+│  3. Final Image (auto on push to main, ~10 min)                 │
+│     Dockerfile                                                  │
+│     - Custom nodes (clone + pip install requirements)           │
+│     - Pre-built CUDA wheels (pip install, no compilation)       │
+│     - Config + entrypoint                                       │
+│     ──▶  ghcr.io/urbanstepa/comfyui-su:latest                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### When to rebuild what
+
+| What changed | What to run | Time |
+|---|---|---|
+| Custom node code updated | Push to main (auto) | ~10 min |
+| New custom node added | Add to Dockerfile, push | ~10 min |
+| CUDA extension C++ code | Run "Wheel: xxx" | ~20 min |
+| New pip dependency | Push to main (auto) | ~10 min |
+| PyTorch / CUDA upgrade | Build Base Image | ~15 min |
+| ComfyUI core updated | Build Base Image | ~15 min |
 
 ---
 
@@ -93,23 +133,44 @@ Models in `E:/Models/diffusion_models/` will appear under `diffusion_models/exte
 
 ---
 
-## Image Versioning
+## CI/CD Workflows
+
+All workflows are in `.github/workflows/`:
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| **Build and Push Docker Image** (`build.yml`) | Auto on push to main | Builds final image from base + wheels |
+| **Build Base Image** (`build-base.yml`) | Manual | Builds CUDA + Python + PyTorch + ComfyUI core |
+| **Wheel: custom_rasterizer** | Manual | Builds one wheel, uploads to `cuda-wheels` release |
+| **Wheel: voxelize** | Manual | Builds one wheel, uploads to `cuda-wheels` release |
+| **Wheel: torchsparse** | Manual | Builds one wheel, uploads to `cuda-wheels` release |
+| **Build All Wheels** (`build-wheels.yml`) | Manual | Runs all wheel workflows in parallel |
+
+### Wheel system
+
+CUDA extensions are compiled as Python wheels in separate CI jobs and stored in a persistent GitHub Release (`cuda-wheels`). The final Docker image installs them via `pip install` — no compilation needed.
+
+**Adding a new wheel:**
+1. Copy any `wheel-*.yml` workflow file
+2. Change the repo URL, build directory, and artifact name
+3. Add the new `ARG` to the Dockerfile
+4. Add it to `build-wheels.yml` if you want it included in "Build All"
+
+**Rebuilding a single wheel:**
+Run its workflow from the Actions tab. It replaces just that wheel in the `cuda-wheels` release — other wheels are untouched.
+
+### Image versioning
 
 The CI workflow automatically tags each image with:
 - `latest` — always the most recent build
 - `main` — latest from the main branch
 - `20260321-1430` — date-based tag for each build
-- `sha-abc1234` — commit SHA tag for exact traceability
-- `v1.0.0` — semver tags (when you create a git tag)
+- `abc1234` — commit SHA tag for exact traceability
+- `1.0.0`, `1.0`, `1` — semver tags (when you create a git tag like `v1.0.0`)
 
 To use a specific version:
 ```yaml
 image: ghcr.io/urbanstepa/comfyui-su:20260321-1430
-```
-
-List available versions:
-```powershell
-docker images ghcr.io/urbanstepa/comfyui-su --format "{{.Tag}}"
 ```
 
 ---
@@ -120,15 +181,14 @@ docker images ghcr.io/urbanstepa/comfyui-su --format "{{.Tag}}"
 Set `COMFYUI_ARGS` in your compose file:
 ```yaml
 environment:
-  - COMFYUI_ARGS=--listen 0.0.0.0 --port 8188 --highvram
+  - COMFYUI_ARGS=--listen 0.0.0.0 --port 8188
 ```
 
 Useful flags:
 | Flag | Description |
 |------|-------------|
-| `--highvram` | Keep models in VRAM (RTX 3090 recommended) |
+| `--highvram` | Keep models in VRAM (RTX 3090 24GB recommended) |
 | `--lowvram` | Aggressive offloading for GPUs < 8GB |
-| `--force-fp32` | Force 32-bit precision (debugging) |
 | `--force-fp16` | Force 16-bit precision |
 | `--cpu` | CPU-only mode (slow) |
 
@@ -140,10 +200,7 @@ RUN git clone https://github.com/author/MyNode.git ${CUSTOM_NODES_PATH}/MyNode &
     pip install -r requirements.txt
 ```
 
-Then rebuild:
-```powershell
-docker compose build --no-cache
-```
+Then push to main — the CI will build a new image automatically.
 
 ---
 
@@ -184,7 +241,7 @@ docker run --rm --gpus all nvidia/cuda:13.0.0-base-ubuntu22.04 nvidia-smi
 If this fails, reinstall NVIDIA Container Toolkit in WSL2.
 
 ### CUBLAS_STATUS_INVALID_VALUE error
-PyTorch's bundled cuBLAS library can be incompatible with certain NVIDIA driver versions. The fix is to preload the system cuBLAS instead. This is already configured in `docker-compose.yml`:
+PyTorch's bundled cuBLAS library can be incompatible with certain NVIDIA driver versions. The fix is to preload the system cuBLAS instead. This is configured in `docker-compose.yml`:
 ```yaml
 environment:
   - LD_PRELOAD=/usr/local/cuda/lib64/libcublas.so.13.0.0.19:/usr/local/cuda/lib64/libcublasLt.so.13.0.0.19
@@ -205,8 +262,11 @@ docker exec -it comfyui-3d python3 -c "import torch; a = torch.randn(64,64).cuda
 2. Restart WSL: `wsl --shutdown`, then restart Docker Desktop
 3. Use `--lowvram` or `--medvram` in `COMFYUI_ARGS`
 
+### PyTorch reports cu128 instead of cu130
+Some custom node `requirements.txt` files can downgrade PyTorch to cu128. The Dockerfile includes a re-pin step after all requirements are installed. If you see cu128, rebuild the image.
+
 ### pymeshlab "Unknown format for load: ply"
-The container needs `libopengl0` for pymeshlab's PLY plugin. This is installed in the Dockerfile. If you get this error on an older image, update to the latest.
+The container needs `libopengl0` for pymeshlab's PLY plugin. This is installed in the base image.
 
 ### Models not found
 Check that volume paths use forward slashes:
@@ -225,7 +285,7 @@ This is harmless — ComfyUI-Manager is trying an outdated channel URL. It does 
 ```powershell
 docker compose down
 docker image rm ghcr.io/urbanstepa/comfyui-su:latest
-docker compose build --no-cache
+docker compose up
 ```
 
 ---
@@ -234,17 +294,4 @@ docker compose build --no-cache
 
 Building CUDA extensions (custom_rasterizer, torchsparse, voxelize) on Windows requires fighting MSVC/nvcc compatibility issues — `__asm__` syntax differences, header conflicts, missing sparsehash libs, etc.
 
-On Linux inside Docker, all of these build cleanly with GCC in a single `pip install .` command. The resulting image runs on Windows via Docker Desktop's WSL2 backend with full GPU passthrough.
-
----
-
-## Architecture Notes
-
-- Base image: `nvidia/cuda:13.0.0-devel-ubuntu22.04` (includes nvcc, CUDA headers)
-- All CUDA extensions compiled at image build time targeting `sm_75;sm_80;sm_86;sm_89;sm_90`
-- Models mounted as volumes at runtime (not baked in)
-- Supports multi-drive model storage via multiple volume mounts
-- `LD_PRELOAD` used to override PyTorch's bundled cuBLAS with the system cuBLAS for driver compatibility
-- ComfyUI runs as root inside the container (simplifies permissions)
-- Port 8188 exposed for the ComfyUI web UI and API
-- CI builds via GitHub Actions with automatic date/SHA versioning
+On Linux inside Docker, all of these build cleanly with GCC. The pre-built wheels eliminate compilation entirely from the Docker image build. The resulting image runs on Windows via Docker Desktop's WSL2 backend with full GPU passthrough.
