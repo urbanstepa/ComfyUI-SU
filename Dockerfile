@@ -125,9 +125,10 @@ RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0
     --index-url https://download.pytorch.org/whl/cu130
 
 # ─────────────────────────────────────────────
-# flash-attn — required by ComfyUI-Direct3D-S2 attention module
+# flash-attn — pre-built wheel for cu130 + torch 2.10 + Python 3.12
+# (compiling from source OOM-kills GHA runners)
 # ─────────────────────────────────────────────
-RUN MAX_JOBS=1 pip install flash-attn --no-build-isolation && \
+RUN pip install https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.0/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl && \
     touch /opt/.flash_attn_built
 
 # ─────────────────────────────────────────────
