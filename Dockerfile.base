@@ -1,11 +1,12 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # ComfyUI-SU Base Image
 #
-# The stable foundation that almost never changes:
+# The stable foundation that rarely changes:
 #   - CUDA 13.0 + Python 3.12 + system libraries
 #   - PyTorch 2.10.0+cu130
+#   - ComfyUI core (cloned + pip deps installed)
 #
-# Rebuild only when: CUDA, Python, or PyTorch version changes.
+# Rebuild only when: CUDA, Python, PyTorch, or ComfyUI core version changes.
 # ──────────────────────────────────────────────────────────────────────────────
 
 FROM nvidia/cuda:13.0.0-devel-ubuntu22.04
@@ -63,6 +64,22 @@ RUN rm -rf /usr/lib/python3/dist-packages/blinker /usr/lib/python3/dist-packages
 # ─────────────────────────────────────────────
 RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
     --index-url https://download.pytorch.org/whl/cu130
+
+# ─────────────────────────────────────────────
+# ComfyUI — urbanstepa fork
+# ─────────────────────────────────────────────
+RUN git clone https://github.com/urbanstepa/ComfyUI.git ${COMFYUI_PATH} && \
+    cd ${COMFYUI_PATH} && \
+    pip install -r requirements.txt
+
+# Re-pin PyTorch cu130 (ComfyUI requirements.txt may have downgraded)
+RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
+    --index-url https://download.pytorch.org/whl/cu130
+
+# Directory structure
+RUN mkdir -p ${CUSTOM_NODES_PATH} ${MODELS_PATH} \
+    ${COMFYUI_PATH}/user ${COMFYUI_PATH}/output ${COMFYUI_PATH}/input && \
+    ln -sf ${MODELS_PATH} ${COMFYUI_PATH}/models
 
 # Verify
 RUN python -c "import torch; print(f'PyTorch {torch.__version__} CUDA {torch.version.cuda}')"

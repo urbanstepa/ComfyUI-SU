@@ -3,7 +3,7 @@
 #
 # Built on top of the base image (CUDA + Python + PyTorch).
 # This layer:
-#   - Clones ComfyUI + all custom nodes and installs their pip deps
+#   - Clones all custom nodes and installs their pip deps
 #   - Installs pre-built CUDA wheels (no compilation)
 #   - Copies config and entrypoint
 # ──────────────────────────────────────────────────────────────────────────────
@@ -18,13 +18,6 @@ ARG CUSTOM_RASTERIZER_WHEEL_URL=""
 ARG VOXELIZE_WHEEL_URL=""
 ARG TORCHSPARSE_WHEEL_URL=""
 ARG FLASH_ATTN_WHEEL_URL="https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.0/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl"
-
-# ─────────────────────────────────────────────
-# ComfyUI — urbanstepa fork
-# ─────────────────────────────────────────────
-RUN git clone https://github.com/urbanstepa/ComfyUI.git ${COMFYUI_PATH} && \
-    cd ${COMFYUI_PATH} && \
-    pip install -r requirements.txt
 
 # ─────────────────────────────────────────────
 # ComfyUI Manager — urbanstepa fork
@@ -106,15 +99,6 @@ RUN if [ -n "${FLASH_ATTN_WHEEL_URL}" ]; then \
 # ─────────────────────────────────────────────
 RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
     --index-url https://download.pytorch.org/whl/cu130
-
-# ─────────────────────────────────────────────
-# Model directory (mounted at runtime)
-# ─────────────────────────────────────────────
-RUN mkdir -p ${MODELS_PATH} && \
-    mkdir -p ${COMFYUI_PATH}/user && \
-    mkdir -p ${COMFYUI_PATH}/output && \
-    mkdir -p ${COMFYUI_PATH}/input
-RUN ln -sf ${MODELS_PATH} ${COMFYUI_PATH}/models
 
 # ─────────────────────────────────────────────
 # Config + Entrypoint
