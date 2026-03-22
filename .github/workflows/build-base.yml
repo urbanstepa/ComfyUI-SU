@@ -1,0 +1,100 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Build the ComfyUI-SU base image
+#
+# Contains: CUDA + Python + PyTorch + all pip deps + CUDA wheels
+# Pushed to: ghcr.io/urbanstepa/comfyui-su-base
+#
+# Rebuild when: PyTorch changes, new dependency added, wheels updated.
+# The main image (build.yml) uses this as its FROM layer.
+# ──────────────────────────────────────────────────────────────────────────────
+name: "Build Base Image"
+
+on:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}-base    # comfyui-su-base
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Resolve wheel URLs from cuda-wheels release ────────────────
+      - name: Resolve CUDA wheel URLs
+        id: wheels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CUSTOM_RASTERIZER_WHEEL_URL: ${{ vars.CUSTOM_RASTERIZER_WHEEL_URL }}
+          VOXELIZE_WHEEL_URL: ${{ vars.VOXELIZE_WHEEL_URL }}
+          TORCHSPARSE_WHEEL_URL: ${{ vars.TORCHSPARSE_WHEEL_URL }}
+        run: |
+          REPO="${{ github.repository }}"
+          TAG="cuda-wheels"
+
+          if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+            echo "Found $TAG release"
+            ASSETS=$(gh release view "$TAG" --repo "$REPO" --json assets \
+              -q '.assets[] | .name + " " + .url')
+
+            CUSTOM_RASTERIZER_AUTO=$(echo "$ASSETS" | grep -i 'custom_rasterizer' | awk '{print $2}' || true)
+            VOXELIZE_AUTO=$(echo "$ASSETS" | grep -iE 'udf_ext|voxelize' | awk '{print $2}' || true)
+            TORCHSPARSE_AUTO=$(echo "$ASSETS" | grep -i 'torchsparse' | awk '{print $2}' || true)
+          else
+            echo "No $TAG release found"
+            CUSTOM_RASTERIZER_AUTO=""
+            VOXELIZE_AUTO=""
+            TORCHSPARSE_AUTO=""
+          fi
+
+          echo "custom_rasterizer=${CUSTOM_RASTERIZER_WHEEL_URL:-$CUSTOM_RASTERIZER_AUTO}" >> "$GITHUB_OUTPUT"
+          echo "voxelize=${VOXELIZE_WHEEL_URL:-$VOXELIZE_AUTO}" >> "$GITHUB_OUTPUT"
+          echo "torchsparse=${TORCHSPARSE_WHEEL_URL:-$TORCHSPARSE_AUTO}" >> "$GITHUB_OUTPUT"
+
+          echo "── Resolved URLs ──"
+          echo "custom_rasterizer: ${CUSTOM_RASTERIZER_WHEEL_URL:-${CUSTOM_RASTERIZER_AUTO:-<not available>}}"
+          echo "voxelize: ${VOXELIZE_WHEEL_URL:-${VOXELIZE_AUTO:-<not available>}}"
+          echo "torchsparse: ${TORCHSPARSE_WHEEL_URL:-${TORCHSPARSE_AUTO:-<not available>}}"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value={{date 'YYYYMMDD-HHmm'}}
+            type=sha,prefix=
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push base image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.base
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=base
+          cache-to: type=gha,scope=base,mode=max
+          build-args: |
+            CUSTOM_RASTERIZER_WHEEL_URL=${{ steps.wheels.outputs.custom_rasterizer }}
+            VOXELIZE_WHEEL_URL=${{ steps.wheels.outputs.voxelize }}
+            TORCHSPARSE_WHEEL_URL=${{ steps.wheels.outputs.torchsparse }}
+            FLASH_ATTN_WHEEL_URL=${{ vars.FLASH_ATTN_WHEEL_URL || 'https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.0/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl' }}
