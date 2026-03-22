@@ -25,6 +25,17 @@ ARG TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;8.9;9.0"
 ENV TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST}
 
 # ─────────────────────────────────────────────
+# Pre-built CUDA wheel URLs (from fork repo GitHub Releases)
+# Set these to skip slow CUDA compilation during docker build.
+# Leave empty to compile from source (slower but always works).
+# Example: --build-arg CUSTOM_RASTERIZER_WHEEL_URL=https://github.com/urbanstepa/ComfyUI-Hunyuan3DWrapper/releases/download/v1.0.0/custom_rasterizer_kernel-0.0.0-cp312-cp312-linux_x86_64.whl
+# ─────────────────────────────────────────────
+ARG CUSTOM_RASTERIZER_WHEEL_URL=""
+ARG VOXELIZE_WHEEL_URL=""
+ARG TORCHSPARSE_WHEEL_URL=""
+ARG FLASH_ATTN_WHEEL_URL="https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.0/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl"
+
+# ─────────────────────────────────────────────
 # System dependencies + Python 3.12 via deadsnakes PPA
 # ─────────────────────────────────────────────
 RUN apt-get update && apt-get install -y \
@@ -85,10 +96,16 @@ RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3DWrapper.git \
     cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
     pip install -r requirements.txt
 # ─────────────────────────────────────────────
-# Build custom_rasterizer (CUDA cross-compile, no GPU needed)
+# custom_rasterizer — use pre-built wheel if URL provided, else compile
 # ─────────────────────────────────────────────
-RUN cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper/hy3dgen/texgen/custom_rasterizer && \
-    MAX_JOBS=1 python setup.py install && \
+RUN if [ -n "${CUSTOM_RASTERIZER_WHEEL_URL}" ]; then \
+      echo "Installing custom_rasterizer from pre-built wheel" && \
+      pip install "${CUSTOM_RASTERIZER_WHEEL_URL}"; \
+    else \
+      echo "Compiling custom_rasterizer from source (slow)" && \
+      cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper/hy3dgen/texgen/custom_rasterizer && \
+      MAX_JOBS=1 python setup.py install; \
+    fi && \
     touch /opt/.custom_rasterizer_built
 
 # ─────────────────────────────────────────────
@@ -100,22 +117,33 @@ RUN git clone https://github.com/urbanstepa/ComfyUI-Direct3D-S2.git \
     pip install -r requirements.txt
 
 # ─────────────────────────────────────────────
-# Build voxelize (CUDA cross-compile, no GPU needed)
+# voxelize — use pre-built wheel if URL provided, else compile
 # ─────────────────────────────────────────────
-RUN cd ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2/voxelize && \
-    MAX_JOBS=1 python setup.py install && \
+RUN if [ -n "${VOXELIZE_WHEEL_URL}" ]; then \
+      echo "Installing voxelize from pre-built wheel" && \
+      pip install "${VOXELIZE_WHEEL_URL}"; \
+    else \
+      echo "Compiling voxelize from source (slow)" && \
+      cd ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2/voxelize && \
+      MAX_JOBS=1 python setup.py install; \
+    fi && \
     touch /opt/.voxelize_built
 
 # ─────────────────────────────────────────────
-# Build torchsparse from source — urbanstepa fork
-# (CUDA cross-compile, no GPU needed)
+# torchsparse — use pre-built wheel if URL provided, else compile
 # ─────────────────────────────────────────────
 RUN pip install rootpath backports.cached-property && \
-    git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse && \
-    cd /tmp/torchsparse && \
-    MAX_JOBS=1 python setup.py install && \
-    touch /opt/.torchsparse_built && \
-    rm -rf /tmp/torchsparse
+    if [ -n "${TORCHSPARSE_WHEEL_URL}" ]; then \
+      echo "Installing torchsparse from pre-built wheel" && \
+      pip install "${TORCHSPARSE_WHEEL_URL}"; \
+    else \
+      echo "Compiling torchsparse from source (slow)" && \
+      git clone https://github.com/urbanstepa/torchsparse.git /tmp/torchsparse && \
+      cd /tmp/torchsparse && \
+      MAX_JOBS=1 python setup.py install && \
+      rm -rf /tmp/torchsparse; \
+    fi && \
+    touch /opt/.torchsparse_built
 
 # ─────────────────────────────────────────────
 # Re-pin PyTorch cu130 BEFORE flash-attn build
@@ -125,10 +153,9 @@ RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0
     --index-url https://download.pytorch.org/whl/cu130
 
 # ─────────────────────────────────────────────
-# flash-attn — pre-built wheel for cu130 + torch 2.10 + Python 3.12
-# (compiling from source OOM-kills GHA runners)
+# flash-attn — pre-built wheel (compiling from source OOM-kills GHA runners)
 # ─────────────────────────────────────────────
-RUN pip install https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.0/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl && \
+RUN pip install "${FLASH_ATTN_WHEEL_URL}" && \
     touch /opt/.flash_attn_built
 
 # ─────────────────────────────────────────────
@@ -176,12 +203,12 @@ COPY config/extra_model_paths.yaml ${COMFYUI_PATH}/extra_model_paths.yaml
 # ─────────────────────────────────────────────
 # Build manifest — record what was compiled
 # ─────────────────────────────────────────────
-RUN echo "custom_rasterizer | docker build" >> /opt/.prebuilt-manifest && \
-    echo "voxelize | docker build" >> /opt/.prebuilt-manifest && \
-    echo "torchsparse | docker build" >> /opt/.prebuilt-manifest && \
-    echo "flash_attn | docker build" >> /opt/.prebuilt-manifest && \
-    echo "comfyui_essentials | docker build" >> /opt/.prebuilt-manifest && \
-    echo "comfyui_hunyuan3d21 | docker build" >> /opt/.prebuilt-manifest
+RUN echo "custom_rasterizer | $([ -n '${CUSTOM_RASTERIZER_WHEEL_URL}' ] && echo 'wheel' || echo 'source')" >> /opt/.prebuilt-manifest && \
+    echo "voxelize | $([ -n '${VOXELIZE_WHEEL_URL}' ] && echo 'wheel' || echo 'source')" >> /opt/.prebuilt-manifest && \
+    echo "torchsparse | $([ -n '${TORCHSPARSE_WHEEL_URL}' ] && echo 'wheel' || echo 'source')" >> /opt/.prebuilt-manifest && \
+    echo "flash_attn | wheel" >> /opt/.prebuilt-manifest && \
+    echo "comfyui_essentials | pip" >> /opt/.prebuilt-manifest && \
+    echo "comfyui_hunyuan3d21 | pip" >> /opt/.prebuilt-manifest
 
 # ─────────────────────────────────────────────
 # Entrypoint

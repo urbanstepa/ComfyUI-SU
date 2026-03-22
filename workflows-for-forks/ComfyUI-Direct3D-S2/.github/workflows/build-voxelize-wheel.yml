@@ -1,0 +1,113 @@
+# ------------------------------------------------------------------
+# Build the voxelize (udf_ext) CUDA wheel and publish it.
+#
+# This workflow compiles udf_ext (CUDAExtension using
+# src/udf_kernel.cu and src/udf_cuda.cpp) inside an NVIDIA CUDA
+# container, then uploads the resulting wheel as a GitHub Actions
+# artifact.  On tag pushes (v*) it also creates a GitHub Release
+# with the wheel attached.
+# ------------------------------------------------------------------
+
+name: Build voxelize wheel
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+# ── Environment shared by every step inside the build job ─────────
+env:
+  # Target GPU architectures (Volta through Hopper).
+  TORCH_CUDA_ARCH_LIST: "7.5;8.0;8.6;8.9;9.0"
+  # Force setuptools / torch cpp_extension to build CUDA kernels
+  # even when no physical GPU is present on the runner.
+  FORCE_CUDA: "1"
+  # Cap parallel compilation jobs so the GHA runner doesn't OOM.
+  MAX_JOBS: "2"
+
+jobs:
+  # ================================================================
+  # 1. Build the wheel inside an NVIDIA CUDA dev container
+  # ================================================================
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: nvidia/cuda:13.0.0-devel-ubuntu22.04
+
+    steps:
+      # -- Checkout the repository --------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -- Install Python 3.12 from the deadsnakes PPA -----------
+      - name: Install Python 3.12
+        run: |
+          apt-get update -qq
+          # Prerequisites for adding PPAs.
+          apt-get install -y --no-install-recommends \
+            software-properties-common gpg-agent
+          add-apt-repository -y ppa:deadsnakes/ppa
+          apt-get update -qq
+          apt-get install -y --no-install-recommends \
+            python3.12 python3.12-dev python3.12-venv python3.12-distutils
+          # Make python3 / pip point at 3.12.
+          update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
+          python3 -m ensurepip --upgrade
+          python3 -m pip install --upgrade pip setuptools wheel
+
+      # -- Install PyTorch 2.10.0+cu130 --------------------------
+      - name: Install PyTorch stack (cu130)
+        run: |
+          python3 -m pip install \
+            torch==2.10.0+cu130 \
+            torchvision==0.25.0+cu130 \
+            torchaudio==2.10.0+cu130 \
+            --index-url https://download.pytorch.org/whl/cu130
+
+      # -- Install any remaining build dependencies ---------------
+      - name: Install build dependencies
+        run: |
+          # ninja speeds up the compilation considerably.
+          python3 -m pip install ninja
+
+      # -- Build the wheel ----------------------------------------
+      - name: Build voxelize wheel
+        working-directory: voxelize
+        run: |
+          python3 -m pip wheel . --no-deps --wheel-dir dist/
+          echo "── Built wheel(s): ──"
+          ls -lh dist/
+
+      # -- Upload the wheel as an Actions artifact ----------------
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voxelize-wheel
+          path: voxelize/dist/*.whl
+          if-no-files-found: error
+
+  # ================================================================
+  # 2. Create a GitHub Release on tag pushes (v*)
+  # ================================================================
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # required to create releases
+
+    steps:
+      # -- Download the wheel built in the previous job -----------
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: voxelize-wheel
+          path: dist/
+
+      # -- Create the release and attach the wheel ----------------
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*.whl
