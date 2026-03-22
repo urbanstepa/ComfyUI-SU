@@ -1,11 +1,12 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # ComfyUI-SU Base Image
 #
-# The foundation layer that rarely changes:
-#   - CUDA 13.0 + Python 3.12 + system libraries
-#   - PyTorch 2.10.0+cu130
+# Contains everything that rarely changes:
+#   - CUDA 13.0 + Python 3.12 + PyTorch 2.10.0+cu130
+#   - ComfyUI core + all custom nodes (git clone + pip install requirements)
+#   - All pip dependencies resolved and pinned
 #
-# Rebuild only when: CUDA version, Python version, or PyTorch version changes.
+# Rebuild when: PyTorch/CUDA changes, new custom node added, deps updated.
 # ──────────────────────────────────────────────────────────────────────────────
 
 FROM nvidia/cuda:13.0.0-devel-ubuntu22.04
@@ -19,7 +20,7 @@ ENV CUDA_HOME=/usr/local/cuda
 ENV PATH=${CUDA_HOME}/bin:${PATH}
 ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 
-# Paths (must match the final Dockerfile)
+# Paths
 ENV COMFYUI_PATH=/opt/ComfyUI
 ENV CUSTOM_NODES_PATH=${COMFYUI_PATH}/custom_nodes
 ENV MODELS_PATH=/models
@@ -55,14 +56,82 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
     curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12 && \
     python3.12 -m pip install --upgrade pip setuptools wheel
 
+# Remove distutils blinker to prevent conflicts
+RUN rm -rf /usr/lib/python3/dist-packages/blinker /usr/lib/python3/dist-packages/blinker-1.4.egg-info
+
 # ─────────────────────────────────────────────
 # PyTorch 2.10.0 + CUDA 13.0
 # ─────────────────────────────────────────────
 RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
     --index-url https://download.pytorch.org/whl/cu130
 
-# Remove distutils blinker to prevent conflicts with pip-managed packages
-RUN rm -rf /usr/lib/python3/dist-packages/blinker /usr/lib/python3/dist-packages/blinker-1.4.egg-info
+# ─────────────────────────────────────────────
+# ComfyUI — urbanstepa fork
+# ─────────────────────────────────────────────
+RUN git clone https://github.com/urbanstepa/ComfyUI.git ${COMFYUI_PATH} && \
+    cd ${COMFYUI_PATH} && \
+    pip install -r requirements.txt
+
+# ─────────────────────────────────────────────
+# ComfyUI Manager — urbanstepa fork
+# ─────────────────────────────────────────────
+RUN git clone https://github.com/urbanstepa/ComfyUI-Manager.git \
+    ${CUSTOM_NODES_PATH}/ComfyUI-Manager && \
+    cd ${CUSTOM_NODES_PATH}/ComfyUI-Manager && \
+    pip install -r requirements.txt
+
+# ─────────────────────────────────────────────
+# comfyui-hunyuan3dwrapper — urbanstepa fork
+# ─────────────────────────────────────────────
+RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3DWrapper.git \
+    ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
+    cd ${CUSTOM_NODES_PATH}/comfyui-hunyuan3dwrapper && \
+    pip install -r requirements.txt
+
+# ─────────────────────────────────────────────
+# ComfyUI-Direct3D-S2 — urbanstepa fork
+# ─────────────────────────────────────────────
+RUN git clone https://github.com/urbanstepa/ComfyUI-Direct3D-S2.git \
+    ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2 && \
+    cd ${CUSTOM_NODES_PATH}/ComfyUI-Direct3D-S2 && \
+    pip install -r requirements.txt
+
+# ─────────────────────────────────────────────
+# ComfyUI Essentials — image resize, remove bg, mask preview, etc.
+# ─────────────────────────────────────────────
+RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
+    ${CUSTOM_NODES_PATH}/ComfyUI_essentials && \
+    cd ${CUSTOM_NODES_PATH}/ComfyUI_essentials && \
+    pip install -r requirements.txt && \
+    pip install "rembg[gpu]"
+
+# ─────────────────────────────────────────────
+# ComfyUI-Hunyuan3d-2-1 — Hunyuan3D v2.1 mesh export, decimation, transparency
+# ─────────────────────────────────────────────
+RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3d-2-1.git \
+    ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
+    cd ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
+    pip install -r requirements.txt
+
+# ─────────────────────────────────────────────
+# torchsparse runtime deps
+# ─────────────────────────────────────────────
+RUN pip install rootpath backports.cached-property
+
+# ─────────────────────────────────────────────
+# Re-pin PyTorch cu130 (requirements.txt may have downgraded to cu128)
+# ─────────────────────────────────────────────
+RUN pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
+    --index-url https://download.pytorch.org/whl/cu130
+
+# ─────────────────────────────────────────────
+# Directory structure
+# ─────────────────────────────────────────────
+RUN mkdir -p ${MODELS_PATH} && \
+    mkdir -p ${COMFYUI_PATH}/user && \
+    mkdir -p ${COMFYUI_PATH}/output && \
+    mkdir -p ${COMFYUI_PATH}/input && \
+    ln -sf ${MODELS_PATH} ${COMFYUI_PATH}/models
 
 # Verify
 RUN python -c "import torch; print(f'PyTorch {torch.__version__} CUDA {torch.version.cuda}')"
