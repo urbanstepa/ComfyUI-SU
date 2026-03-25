@@ -22,10 +22,17 @@ ARG FLASH_ATTN_WHEEL_URL="https://github.com/mjun0812/flash-attention-prebuild-w
 # ─────────────────────────────────────────────
 # ComfyUI Manager — urbanstepa fork
 # ─────────────────────────────────────────────
+# Patch: ComfyUI-Manager channel_url mismatch
+#   The Manager's config.ini defaults channel_url to the old ltdrdata GitHub URL,
+#   but channels.list now points to Comfy-Org. The old URL fails valid_channels
+#   validation, causing: "An invalid channel was used: __https://...ltdrdata...__"
+#   Fix: pre-create config.ini with channel_url = default (resolves via channels.list).
 RUN git clone https://github.com/urbanstepa/ComfyUI-Manager.git \
     ${CUSTOM_NODES_PATH}/ComfyUI-Manager && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Manager && \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && \
+    mkdir -p /opt/ComfyUI/user/__manager && \
+    printf '[default]\nchannel_url = default\n' > /opt/ComfyUI/user/__manager/config.ini
 
 # ─────────────────────────────────────────────
 # comfyui-hunyuan3dwrapper — urbanstepa fork
