@@ -74,6 +74,7 @@ RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
 RUN git clone https://github.com/kijai/ComfyUI-KJNodes.git \
     ${CUSTOM_NODES_PATH}/comfyui-kjnodes && \
     cd ${CUSTOM_NODES_PATH}/comfyui-kjnodes && \
+    git checkout 068d4fee62d379723dd96dd3e768ed807f7d7135 && \
     pip install -r requirements.txt
 
 # ─────────────────────────────────────────────
