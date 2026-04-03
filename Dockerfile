@@ -71,10 +71,21 @@ RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
 # ─────────────────────────────────────────────
 # ComfyUI-Hunyuan3d-2-1 — Hunyuan3D v2.1 mesh export, decimation, transparency
 # ─────────────────────────────────────────────
+# Patch: mesh_inpaint_processor — missing Linux cp312 wheel
+#   The dist/ folder only ships a Linux wheel for Python 3.11 (cp311). On Python 3.12
+#   the import silently fails, leaving meshVerticeInpaint undefined and causing:
+#   NameError: name 'meshVerticeInpaint' is not defined during texture inpainting.
+#   Fix: compile the pybind11 C++ extension from source and install it into site-packages.
 RUN git clone https://github.com/urbanstepa/ComfyUI-Hunyuan3d-2-1.git \
     ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Hunyuan3d-2-1 && \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && \
+    pip install pybind11 && \
+    cd hy3dpaint/DifferentiableRenderer && \
+    EXT=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))") && \
+    c++ -O3 -Wall -shared -std=c++11 -fPIC $(python3 -m pybind11 --includes) \
+        mesh_inpaint_processor.cpp -o mesh_inpaint_processor${EXT} && \
+    cp mesh_inpaint_processor${EXT} /usr/local/lib/python3.12/dist-packages/
 
 # ─────────────────────────────────────────────
 # torchsparse runtime deps
