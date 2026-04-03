@@ -69,6 +69,14 @@ RUN git clone https://github.com/urbanstepa/ComfyUI_essentials.git \
     pip install "rembg[gpu]"
 
 # ─────────────────────────────────────────────
+# ComfyUI-KJNodes — utility nodes (masking, scheduling, image ops, etc.)
+# ─────────────────────────────────────────────
+RUN git clone https://github.com/kijai/ComfyUI-KJNodes.git \
+    ${CUSTOM_NODES_PATH}/comfyui-kjnodes && \
+    cd ${CUSTOM_NODES_PATH}/comfyui-kjnodes && \
+    pip install -r requirements.txt
+
+# ─────────────────────────────────────────────
 # ComfyUI-Hunyuan3d-2-1 — Hunyuan3D v2.1 mesh export, decimation, transparency
 # ─────────────────────────────────────────────
 # Patch: mesh_inpaint_processor — missing Linux cp312 wheel
