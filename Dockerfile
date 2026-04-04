@@ -78,6 +78,15 @@ RUN git clone https://github.com/kijai/ComfyUI-KJNodes.git \
     pip install -r requirements.txt
 
 # ─────────────────────────────────────────────
+# ComfyUI-Chord — Ubisoft, chord-based music/audio generation nodes
+# ─────────────────────────────────────────────
+RUN git clone https://github.com/ubisoft/ComfyUI-Chord.git \
+    ${CUSTOM_NODES_PATH}/ComfyUI-Chord && \
+    cd ${CUSTOM_NODES_PATH}/ComfyUI-Chord && \
+    git checkout a192c64016c2a2c786090c5fbe21e21c0675822a && \
+    pip install -r requirements.txt
+
+# ─────────────────────────────────────────────
 # ComfyUI-Hunyuan3d-2-1 — Hunyuan3D v2.1 mesh export, decimation, transparency
 # ─────────────────────────────────────────────
 # Patch: mesh_inpaint_processor — missing Linux cp312 wheel
