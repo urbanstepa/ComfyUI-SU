@@ -89,11 +89,15 @@ RUN git clone https://github.com/ubisoft/ComfyUI-Chord.git \
 # ─────────────────────────────────────────────
 # ComfyUI-Trellis2 — Trellis2 3D generation nodes
 # ─────────────────────────────────────────────
+# Patch: cumesh is not on PyPI — the repo ships pre-built Linux wheels
+#   under wheels/Linux/Torch291/ (cp312, x86_64). Install the wheel
+#   directly from the cloned repo after the regular pip install.
 RUN git clone https://github.com/visualbruno/ComfyUI-Trellis2.git \
     ${CUSTOM_NODES_PATH}/ComfyUI-Trellis2 && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Trellis2 && \
     git checkout f0bc251544dcb380b4266535ac985d402a40a9b9 && \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && \
+    pip install wheels/Linux/Torch291/cumesh-1.0-cp312-cp312-linux_x86_64.whl
 
 # ─────────────────────────────────────────────
 # ComfyUI-Hunyuan3d-2-1 — Hunyuan3D v2.1 mesh export, decimation, transparency
