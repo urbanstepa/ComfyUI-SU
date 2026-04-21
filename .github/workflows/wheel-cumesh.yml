@@ -42,7 +42,8 @@ jobs:
             --index-url https://download.pytorch.org/whl/cu130
 
       - name: Clone source (with submodules)
-        run: git clone --depth 1 --recurse-submodules https://github.com/visualbruno/CuMesh.git /build/repo
+        # --depth 1 breaks nested submodules (cubvh → eigen). Full clone required.
+        run: git clone --recurse-submodules https://github.com/visualbruno/CuMesh.git /build/repo
 
       - name: Build wheel
         working-directory: /build/repo
