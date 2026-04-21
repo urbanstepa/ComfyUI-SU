@@ -32,3 +32,8 @@ jobs:
     uses: ./.github/workflows/wheel-torchsparse.yml
     permissions:
       contents: write
+
+  cumesh:
+    uses: ./.github/workflows/wheel-cumesh.yml
+    permissions:
+      contents: write

@@ -17,6 +17,7 @@ FROM ${BASE_IMAGE}
 ARG CUSTOM_RASTERIZER_WHEEL_URL=""
 ARG VOXELIZE_WHEEL_URL=""
 ARG TORCHSPARSE_WHEEL_URL=""
+ARG CUMESH_WHEEL_URL=""
 ARG FLASH_ATTN_WHEEL_URL="https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.0/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl"
 
 # ─────────────────────────────────────────────
@@ -89,23 +90,11 @@ RUN git clone https://github.com/ubisoft/ComfyUI-Chord.git \
 # ─────────────────────────────────────────────
 # ComfyUI-Trellis2 — Trellis2 3D generation nodes
 # ─────────────────────────────────────────────
-# Patch: pre-built cumesh wheels in the repo target CUDA 12 (libcudart.so.12)
-#   which is incompatible with our CUDA 13 image. Build cumesh from source
-#   instead — visualbruno/CuMesh uses torch.utils.cpp_extension which
-#   auto-detects the installed CUDA/PyTorch environment.
-#   Requires --recursive clone to pull in third_party/cubvh and xatlas.
-#   Requires --no-build-isolation so setup.py can see the installed torch.
 RUN git clone https://github.com/visualbruno/ComfyUI-Trellis2.git \
     ${CUSTOM_NODES_PATH}/ComfyUI-Trellis2 && \
     cd ${CUSTOM_NODES_PATH}/ComfyUI-Trellis2 && \
     git checkout f0bc251544dcb380b4266535ac985d402a40a9b9 && \
     pip install -r requirements.txt
-
-RUN git clone https://github.com/visualbruno/CuMesh.git --recursive /tmp/CuMesh && \
-    cd /tmp/CuMesh && \
-    git checkout d10e54c30ddd03d11472c1431693f985501c7966 && \
-    pip install . --no-build-isolation && \
-    rm -rf /tmp/CuMesh
 
 # ─────────────────────────────────────────────
 # ComfyUI-Hunyuan3d-2-1 — Hunyuan3D v2.1 mesh export, decimation, transparency
@@ -154,6 +143,11 @@ RUN if [ -n "${TORCHSPARSE_WHEEL_URL}" ]; then \
       echo "Installing torchsparse wheel" && \
       pip install "${TORCHSPARSE_WHEEL_URL}"; \
     else echo "⚠ TORCHSPARSE_WHEEL_URL not set — skipping"; fi
+
+RUN if [ -n "${CUMESH_WHEEL_URL}" ]; then \
+      echo "Installing cumesh wheel" && \
+      pip install "${CUMESH_WHEEL_URL}"; \
+    else echo "⚠ CUMESH_WHEEL_URL not set — skipping"; fi
 
 RUN if [ -n "${FLASH_ATTN_WHEEL_URL}" ]; then \
       echo "Installing flash-attn wheel" && \

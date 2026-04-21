@@ -47,6 +47,7 @@ jobs:
           CUSTOM_RASTERIZER_WHEEL_URL: ${{ vars.CUSTOM_RASTERIZER_WHEEL_URL }}
           VOXELIZE_WHEEL_URL: ${{ vars.VOXELIZE_WHEEL_URL }}
           TORCHSPARSE_WHEEL_URL: ${{ vars.TORCHSPARSE_WHEEL_URL }}
+          CUMESH_WHEEL_URL: ${{ vars.CUMESH_WHEEL_URL }}
         run: |
           REPO="${{ github.repository }}"
           TAG="cuda-wheels"
@@ -59,21 +60,25 @@ jobs:
             CUSTOM_RASTERIZER_AUTO=$(echo "$ASSETS" | grep -i 'custom_rasterizer' | awk '{print $2}' || true)
             VOXELIZE_AUTO=$(echo "$ASSETS" | grep -iE 'udf_ext|voxelize' | awk '{print $2}' || true)
             TORCHSPARSE_AUTO=$(echo "$ASSETS" | grep -i 'torchsparse' | awk '{print $2}' || true)
+            CUMESH_AUTO=$(echo "$ASSETS" | grep -i 'cumesh' | awk '{print $2}' || true)
           else
             echo "No $TAG release found"
             CUSTOM_RASTERIZER_AUTO=""
             VOXELIZE_AUTO=""
             TORCHSPARSE_AUTO=""
+            CUMESH_AUTO=""
           fi
 
           echo "custom_rasterizer=${CUSTOM_RASTERIZER_WHEEL_URL:-$CUSTOM_RASTERIZER_AUTO}" >> "$GITHUB_OUTPUT"
           echo "voxelize=${VOXELIZE_WHEEL_URL:-$VOXELIZE_AUTO}" >> "$GITHUB_OUTPUT"
           echo "torchsparse=${TORCHSPARSE_WHEEL_URL:-$TORCHSPARSE_AUTO}" >> "$GITHUB_OUTPUT"
+          echo "cumesh=${CUMESH_WHEEL_URL:-$CUMESH_AUTO}" >> "$GITHUB_OUTPUT"
 
           echo "── Resolved URLs ──"
-          echo "custom_rasterizer: ${CUSTOM_RASTERIZER_WHEEL_URL:-${CUSTOM_RASTERIZER_AUTO:-<compile from source>}}"
-          echo "voxelize: ${VOXELIZE_WHEEL_URL:-${VOXELIZE_AUTO:-<compile from source>}}"
-          echo "torchsparse: ${TORCHSPARSE_WHEEL_URL:-${TORCHSPARSE_AUTO:-<compile from source>}}"
+          echo "custom_rasterizer: ${CUSTOM_RASTERIZER_WHEEL_URL:-${CUSTOM_RASTERIZER_AUTO:-<not built>}}"
+          echo "voxelize: ${VOXELIZE_WHEEL_URL:-${VOXELIZE_AUTO:-<not built>}}"
+          echo "torchsparse: ${TORCHSPARSE_WHEEL_URL:-${TORCHSPARSE_AUTO:-<not built>}}"
+          echo "cumesh: ${CUMESH_WHEEL_URL:-${CUMESH_AUTO:-<not built>}}"
 
       - name: Extract metadata
         id: meta
@@ -108,4 +113,5 @@ jobs:
             CUSTOM_RASTERIZER_WHEEL_URL=${{ steps.wheels.outputs.custom_rasterizer }}
             VOXELIZE_WHEEL_URL=${{ steps.wheels.outputs.voxelize }}
             TORCHSPARSE_WHEEL_URL=${{ steps.wheels.outputs.torchsparse }}
+            CUMESH_WHEEL_URL=${{ steps.wheels.outputs.cumesh }}
             FLASH_ATTN_WHEEL_URL=${{ vars.FLASH_ATTN_WHEEL_URL || 'https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.0/flash_attn-2.8.3%2Bcu130torch2.10-cp312-cp312-linux_x86_64.whl' }}
