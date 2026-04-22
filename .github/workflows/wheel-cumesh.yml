@@ -41,17 +41,21 @@ jobs:
           pip install torch==2.10.0+cu130 torchvision==0.25.0+cu130 torchaudio==2.10.0+cu130 \
             --index-url https://download.pytorch.org/whl/cu130
 
+      - name: Install Eigen3
+        # Provides /usr/include/eigen3/Eigen/{Dense,Core,...} — used as
+        # fallback because the cubvh nested submodule (third_party/eigen)
+        # is consistently empty even with --recurse-submodules.
+        run: apt-get install -y --no-install-recommends libeigen3-dev
+
       - name: Clone source (with submodules)
-        # --depth 1 breaks nested submodules (cubvh → eigen). Full clone required.
         run: git clone --recurse-submodules https://github.com/visualbruno/CuMesh.git /build/repo
 
       - name: Build wheel
         working-directory: /build/repo
         env:
-          # cubvh's api_gpu target is missing -I.../eigen in setup.py.
-          # CPLUS_INCLUDE_PATH is picked up by g++ automatically for all
-          # translation units, so <Eigen/Dense> resolves without patching setup.py.
-          CPLUS_INCLUDE_PATH: /build/repo/third_party/cubvh/third_party/eigen
+          # Point compiler to system Eigen so <Eigen/Dense> resolves for all
+          # translation units, including api_gpu which setup.py omits -I for.
+          CPLUS_INCLUDE_PATH: /usr/include/eigen3
         run: |
           pip wheel . --no-deps --no-build-isolation --wheel-dir /build/dist/ \
             || python setup.py bdist_wheel --dist-dir /build/dist/
