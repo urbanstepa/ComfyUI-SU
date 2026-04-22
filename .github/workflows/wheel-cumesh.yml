@@ -47,6 +47,11 @@ jobs:
 
       - name: Build wheel
         working-directory: /build/repo
+        env:
+          # cubvh's api_gpu target is missing -I.../eigen in setup.py.
+          # CPLUS_INCLUDE_PATH is picked up by g++ automatically for all
+          # translation units, so <Eigen/Dense> resolves without patching setup.py.
+          CPLUS_INCLUDE_PATH: /build/repo/third_party/cubvh/third_party/eigen
         run: |
           pip wheel . --no-deps --no-build-isolation --wheel-dir /build/dist/ \
             || python setup.py bdist_wheel --dist-dir /build/dist/
